@@ -42,9 +42,9 @@ function initAdminData() {
       } catch (err) {}
     }
 
-    // Always ensure PIN 1717 has valid folder ID mapping
+    // Always ensure PIN 1717 uses the exact configured Folder ID
     const defaultFolderId = _adminDec(_ADMIN_SEC.r); // 1yLR0kdaTMi7HbD1-oAo1Cm9n4bxADUdQ
-    if (!adminState.pinConfig["1717"] || adminState.pinConfig["1717"].id === "YOUR_GOOGLE_DRIVE_FOLDER_ID" || !adminState.pinConfig["1717"].id) {
+    if (!adminState.pinConfig["1717"] || adminState.pinConfig["1717"].id !== defaultFolderId) {
       adminState.pinConfig["1717"] = {
         id: defaultFolderId,
         name: "Academics"
