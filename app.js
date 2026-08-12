@@ -261,6 +261,7 @@ async function openFolder(item) {
 }
 
 async function loadFolder(folderId) {
+  state.lastError = null;
   $("loading").classList.remove("hidden");
   $("fileList").innerHTML = "";
   $("emptyState").classList.add("hidden");
@@ -270,10 +271,10 @@ async function loadFolder(folderId) {
     renderItems();
   } catch (error) {
     console.error("Folder Load Error:", error);
-    const msg = error.message || "Could not load folder.";
-    showToast(msg);
-    $("emptyStateMsg").textContent = msg;
-    $("emptyState").classList.remove("hidden");
+    state.lastError = error.message || "Could not load folder.";
+    state.items = [];
+    showToast(state.lastError);
+    renderItems();
   } finally {
     $("loading").classList.add("hidden");
   }
@@ -283,34 +284,54 @@ async function getDriveItems(folderId) {
   if (!CONFIG.apiKey || CONFIG.apiKey.trim() === "") {
     throw new Error("Google Drive API key is missing.");
   }
+  if (!folderId || folderId === "YOUR_GOOGLE_DRIVE_FOLDER_ID") {
+    throw new Error("Invalid Folder ID. Please check your folder configuration.");
+  }
   const q = `'${folderId}' in parents and trashed = false`;
   const fields = "files(id,name,mimeType,size,modifiedTime,webContentLink,webViewLink,thumbnailLink,parents)";
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&pageSize=1000&orderBy=folder,name&fields=${encodeURIComponent(fields)}&key=${encodeURIComponent(CONFIG.apiKey.trim())}`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&pageSize=1000&orderBy=name&fields=${encodeURIComponent(fields)}&key=${encodeURIComponent(CONFIG.apiKey.trim())}`;
 
-  const res = await fetch(url);
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (netErr) {
+    throw new Error(`Connection Error: Failed to fetch from Google Drive API. Requests may be blocked by HTTP Referrer restrictions in Google Cloud Console.`);
+  }
+
   if (!res.ok) {
     const errorJson = await res.json().catch(() => ({}));
     const errObj = errorJson.error || {};
     const code = errObj.code || res.status;
-    const msg = errObj.message || res.statusText;
+    const msg = errObj.message || res.statusText || "";
 
     if (code === 400) {
-      throw new Error(`API Error (400): Invalid API Key or request.`);
+      throw new Error(`API Error (400): ${msg || "Invalid API key or request parameters."}`);
     } else if (code === 403) {
       if (msg.includes("referer") || msg.includes("referrer") || msg.includes("blocked")) {
-        throw new Error(`API Key HTTP Referrer Blocked: Please allow your domain (e.g. https://*.github.io/*) in Google Cloud Console.`);
+        throw new Error(`API Key HTTP Referrer Blocked: Requests from your domain are blocked in Google Cloud Console.`);
       } else {
         throw new Error(`API Error (403): ${msg.includes("API key") ? "Google Drive API not enabled or API key restricted." : msg}`);
       }
     } else if (code === 404) {
-      throw new Error(`Drive Folder Not Found (404). Ensure folder is shared to "Anyone with link".`);
+      throw new Error(`Drive Folder Not Found (404). Ensure folder sharing is set to "Anyone with link".`);
     } else {
       throw new Error(`Google Drive API Error (${code}): ${msg}`);
     }
   }
 
   const data = await res.json();
-  return (data.files || []).map(f => ({ ...f, folderId }));
+  const items = (data.files || []).map(f => ({ ...f, folderId }));
+
+  // Sort folders first, then files alphabetically by name
+  items.sort((a, b) => {
+    const aIsFolder = a.mimeType === "folder" || a.mimeType === "application/vnd.google-apps.folder";
+    const bIsFolder = b.mimeType === "folder" || b.mimeType === "application/vnd.google-apps.folder";
+    if (aIsFolder && !bIsFolder) return -1;
+    if (!aIsFolder && bIsFolder) return 1;
+    return (a.name || "").localeCompare(b.name || "");
+  });
+
+  return items;
 }
 
 async function buildVaultIndex(rootId) {
@@ -386,6 +407,49 @@ function renderItems() {
   });
 
   $("fileCount").textContent = filtered.length.toLocaleString();
+
+  if (state.lastError) {
+    $("fileList").innerHTML = "";
+    const errStr = state.lastError.toLowerCase();
+    const isReferrerOrNet = errStr.includes("referrer") || errStr.includes("blocked") || errStr.includes("connection") || errStr.includes("fetch") || errStr.includes("403");
+    const is404 = errStr.includes("404") || errStr.includes("not found");
+    $("emptyStateMsg").innerHTML = `
+      <div class="max-w-xl mx-auto p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 animate-slide-up text-left space-y-3">
+        <div class="flex items-center gap-2.5 font-black text-amber-400 text-base">
+          <span class="text-xl">⚠️</span> Google Drive Connection Issue
+        </div>
+        <p class="text-xs sm:text-sm text-slate-200 font-semibold leading-relaxed">${escapeHtml(state.lastError)}</p>
+        <div class="pt-2 text-xs text-slate-300 space-y-2 border-t border-amber-500/20">
+          <p class="font-bold text-amber-300">How to fix this issue:</p>
+          ${isReferrerOrNet ? `
+            <ol class="list-decimal list-inside space-y-1.5 text-slate-300">
+              <li>Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="underline text-indigo-400 font-bold hover:text-indigo-300">Google Cloud Console > Credentials</a>.</li>
+              <li>Click your API Key to edit it.</li>
+              <li>Under <strong>Website restrictions</strong> (HTTP referrers), add your site URL domain patterns:
+                <code class="block my-1.5 p-2 rounded bg-slate-900 border border-slate-700 text-emerald-400 text-[11px] font-mono select-all">http://localhost/*
+http://127.0.0.1/*
+http://localhost:5500/*
+http://127.0.0.1:5500/*
+https://*.github.io/*</code>
+              </li>
+              <li>Click <strong>Save</strong> and wait 1-2 minutes for Google to update permissions, then refresh this page.</li>
+            </ol>
+          ` : is404 ? `
+            <ol class="list-decimal list-inside space-y-1 text-slate-300">
+              <li>Open your folder in <a href="https://drive.google.com" target="_blank" rel="noopener" class="underline text-indigo-400 font-bold hover:text-indigo-300">Google Drive</a>.</li>
+              <li>Right-click the folder > <strong>Share</strong> > <strong>Share</strong>.</li>
+              <li>Change access from <em>Restricted</em> to <strong>"Anyone with the link can view"</strong>.</li>
+              <li>Click <strong>Done</strong> and refresh this page.</li>
+            </ol>
+          ` : `
+            <p class="text-slate-300">Verify that the Google Drive API is enabled in Google Cloud Console and the folder is shared publicly.</p>
+          `}
+        </div>
+      </div>
+    `;
+    $("emptyState").classList.remove("hidden");
+    return;
+  }
 
   if (!filtered.length) {
     $("fileList").innerHTML = "";

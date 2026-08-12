@@ -34,7 +34,22 @@ function initAdminData() {
 
     const savedPins = localStorage.getItem("fm_pin_config");
     if (savedPins) {
-      adminState.pinConfig = JSON.parse(savedPins);
+      try {
+        const parsed = JSON.parse(savedPins);
+        if (parsed && typeof parsed === "object") {
+          adminState.pinConfig = parsed;
+        }
+      } catch (err) {}
+    }
+
+    // Always ensure PIN 1717 has valid folder ID mapping
+    const defaultFolderId = _adminDec(_ADMIN_SEC.r); // 1yLR0kdaTMi7HbD1-oAo1Cm9n4bxADUdQ
+    if (!adminState.pinConfig["1717"] || adminState.pinConfig["1717"].id === "YOUR_GOOGLE_DRIVE_FOLDER_ID" || !adminState.pinConfig["1717"].id) {
+      adminState.pinConfig["1717"] = {
+        id: defaultFolderId,
+        name: "Academics"
+      };
+      savePinConfig();
     }
   } catch (e) {
     console.warn("Error initializing admin storage:", e);
