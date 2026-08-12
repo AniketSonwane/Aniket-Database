@@ -16,10 +16,10 @@ function _secDec(b64Str) {
 }
 
 const DEFAULT_CONFIG = {
-  apiKey: _secDec(_SEC_STORE.k),
+  apiKey: "AIzaSyA7KqMo1OW0QsL-13-S9fY-R9iyaFSdL7I",
   pinFolders: {
     "1717": {
-      id: _secDec(_SEC_STORE.r),
+      id:"1yLR0kdaTMi7HbD1-oAo1Cm9n4bxADUdQ",
       name: "Academics"
     }
   }
