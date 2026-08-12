@@ -36,13 +36,6 @@ function initAdminData() {
     if (savedPins) {
       adminState.pinConfig = JSON.parse(savedPins);
     }
-
-    // Always keep the built-in 1717 mapping authoritative.
-    // This repairs old localStorage data from previous deployments/tests.
-    adminState.pinConfig["1717"] = {
-      id: _adminDec(_ADMIN_SEC.r),
-      name: "Academics"
-    };
   } catch (e) {
     console.warn("Error initializing admin storage:", e);
   }
@@ -51,11 +44,6 @@ function initAdminData() {
 initAdminData();
 
 function savePinConfig() {
-  // 1717 is a protected built-in mapping.
-  adminState.pinConfig["1717"] = {
-    id: _adminDec(_ADMIN_SEC.r),
-    name: "Academics"
-  };
   localStorage.setItem("fm_pin_config", JSON.stringify(adminState.pinConfig));
 }
 

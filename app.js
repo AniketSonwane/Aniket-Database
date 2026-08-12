@@ -1,7 +1,7 @@
 /* OBFUSCATED SECURITY CONFIGURATION */
 const _SEC_STORE = {
-  k: "AIzaSyA7KqMo1OW0QsL-13-S9fY-R9iyaFSdL7I", // API Key
-  r: "1yLR0kdaTMi7HbD1-oAo1Cm9n4bxADUdQ", // Default Folder ID (1717)
+  k: "QUl6YVN5QTdLcU1vMU9XMFFzTC0xMy1TOWZZLVI5aXlhRlNkTDdJ", // API Key
+  r: "MXlMUjBrZGFUTWk3SGJEMTFvQW8xQ205bjRieEFEVWRR", // Default Folder ID (1717)
   a: "OTk5OQ==", // Admin PIN 9999
   p: "MTcxNw==", // 1717 PIN
   e: "Ymh1cGkuYW5pa2V0QGdhbWlsLmNvbQ==" // Admin Email: Bhupi.aniket@gamil.com
@@ -16,10 +16,10 @@ function _secDec(b64Str) {
 }
 
 const DEFAULT_CONFIG = {
-  apiKey: "AIzaSyA7KqMo1OW0QsL-13-S9fY-R9iyaFSdL7I",
+  apiKey: _secDec(_SEC_STORE.k),
   pinFolders: {
     "1717": {
-      id:"1yLR0kdaTMi7HbD1-oAo1Cm9n4bxADUdQ",
+      id: _secDec(_SEC_STORE.r),
       name: "Academics"
     }
   }
@@ -113,17 +113,8 @@ function submitPin() {
   }
 
   // Get target folder configuration
-  // 1717 always uses the official Academics folder.
-  // Do not allow an old localStorage PIN mapping to override it.
-  let targetFolder;
-  if (entry === "1717") {
-    targetFolder = CONFIG.pinFolders["1717"];
-  } else {
-    const pinConfig = (typeof adminState !== "undefined" && adminState.pinConfig)
-      ? adminState.pinConfig
-      : CONFIG.pinFolders;
-    targetFolder = pinConfig[entry] || CONFIG.pinFolders[entry];
-  }
+  const pinConfig = (typeof adminState !== "undefined" && adminState.pinConfig) ? adminState.pinConfig : CONFIG.pinFolders;
+  const targetFolder = pinConfig[entry] || CONFIG.pinFolders[entry];
 
   // Standard PIN verification
   if (state.pin.length !== 4 || !targetFolder) {
@@ -292,39 +283,34 @@ async function getDriveItems(folderId) {
   if (!CONFIG.apiKey || CONFIG.apiKey.trim() === "") {
     throw new Error("Google Drive API key is missing.");
   }
-
-  // Use the same proven Drive query that returns the files in the browser console.
   const q = `'${folderId}' in parents and trashed = false`;
-  const fields = "nextPageToken,files(id,name,mimeType,size,modifiedTime,webContentLink,webViewLink,thumbnailLink,parents)";
-  const params = new URLSearchParams({
-    q,
-    pageSize: "1000",
-    fields,
-    spaces: "drive",
-    key: CONFIG.apiKey.trim()
-  });
+  const fields = "files(id,name,mimeType,size,modifiedTime,webContentLink,webViewLink,thumbnailLink,parents)";
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&pageSize=1000&orderBy=folder,name&fields=${encodeURIComponent(fields)}&key=${encodeURIComponent(CONFIG.apiKey.trim())}`;
 
-  const url = `https://www.googleapis.com/drive/v3/files?${params.toString()}`;
   const res = await fetch(url);
-
-  let data = {};
-  try {
-    data = await res.json();
-  } catch (_) {
-    data = {};
-  }
-
   if (!res.ok) {
-    const errObj = data.error || {};
+    const errorJson = await res.json().catch(() => ({}));
+    const errObj = errorJson.error || {};
     const code = errObj.code || res.status;
-    const msg = errObj.message || res.statusText || "Unknown error";
-    throw new Error(`Google Drive API Error (${code}): ${msg}`);
+    const msg = errObj.message || res.statusText;
+
+    if (code === 400) {
+      throw new Error(`API Error (400): Invalid API Key or request.`);
+    } else if (code === 403) {
+      if (msg.includes("referer") || msg.includes("referrer") || msg.includes("blocked")) {
+        throw new Error(`API Key HTTP Referrer Blocked: Please allow your domain (e.g. https://*.github.io/*) in Google Cloud Console.`);
+      } else {
+        throw new Error(`API Error (403): ${msg.includes("API key") ? "Google Drive API not enabled or API key restricted." : msg}`);
+      }
+    } else if (code === 404) {
+      throw new Error(`Drive Folder Not Found (404). Ensure folder is shared to "Anyone with link".`);
+    } else {
+      throw new Error(`Google Drive API Error (${code}): ${msg}`);
+    }
   }
 
-  const files = Array.isArray(data.files) ? data.files : [];
-
-  // Keep the response exactly as returned by Drive, adding the parent ID only.
-  return files.map(f => ({ ...f, folderId }));
+  const data = await res.json();
+  return (data.files || []).map(f => ({ ...f, folderId }));
 }
 
 async function buildVaultIndex(rootId) {
