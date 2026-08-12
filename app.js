@@ -1,6 +1,6 @@
 /* OBFUSCATED SECURITY CONFIGURATION */
 const _SEC_STORE = {
-  k: "QUl6YVN5QTdLcU1vMU9XMFFzTC0xMy1TOWZZLVI5aXlhRlNkTDdJ", // API Key
+  k: "AIzaSyA7KqMo1OW0QsL-13-S9fY-R9iyaFSdL7I", // API Key
   r: "MXlMUjBrZGFUTWk3SGJEMTFvQW8xQ205bjRieEFEVWRR", // Default Folder ID (1717)
   a: "OTk5OQ==", // Admin PIN 9999
   p: "MTcxNw==", // 1717 PIN
