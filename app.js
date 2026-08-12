@@ -1,7 +1,7 @@
 /* OBFUSCATED SECURITY CONFIGURATION */
 const _SEC_STORE = {
   k: "AIzaSyA7KqMo1OW0QsL-13-S9fY-R9iyaFSdL7I", // API Key
-  r: "MXlMUjBrZGFUTWk3SGJEMTFvQW8xQ205bjRieEFEVWRR", // Default Folder ID (1717)
+  r: "1yLR0kdaTMi7HbD1-oAo1Cm9n4bxADUdQ", // Default Folder ID (1717)
   a: "OTk5OQ==", // Admin PIN 9999
   p: "MTcxNw==", // 1717 PIN
   e: "Ymh1cGkuYW5pa2V0QGdhbWlsLmNvbQ==" // Admin Email: Bhupi.aniket@gamil.com
