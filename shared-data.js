@@ -1,13 +1,4 @@
-/*
-  GLOBAL SHARED DATA SYNC
-  Google Sheets + Google Apps Script Web App
-*/
-
-// Paste your deployed Google Apps Script Web App URL here.
 const SHARED_DATA_API_URL = "https://script.google.com/macros/s/AKfycbxhqMdRnD9mNQ4IjHvQGRqL_7hC1ZbXaklc0J0TY27i6W8T5TqvdIpWDC3jl-NE04FV/exec";
-
-// Must match the token stored in Apps Script > Project Settings > Script Properties.
-// NOTE: This is a lightweight protection only; anything in frontend JS is visible to users.
 const SHARED_DATA_TOKEN = "Aniketexamtimetabledatemangement";
 
 const SHARED_EXAMS_KEY = "fm_exam_dates";
@@ -47,26 +38,48 @@ async function sharedDataRequest(action, method = "GET", payload = null) {
   return data;
 }
 
+let sharedDataInFlightPromise = null;
+
 async function loadSharedData(showError = false) {
   if (!sharedDataConfigured()) return null;
+  if (sharedDataInFlightPromise) return sharedDataInFlightPromise;
 
-  try {
-    const data = await sharedDataRequest("bootstrap");
+  sharedDataInFlightPromise = (async () => {
+    try {
+      const data = await sharedDataRequest("bootstrap");
 
-    const exams = Array.isArray(data.exams) ? data.exams : [];
-    const timetable = data.timetable && typeof data.timetable === "object" ? data.timetable : {};
+      const exams = Array.isArray(data.exams) ? data.exams : [];
+      const timetable = data.timetable && typeof data.timetable === "object" ? data.timetable : {};
+      const activityLogs = Array.isArray(data.activityLogs) ? data.activityLogs : [];
+      const blockedEmails = Array.isArray(data.blockedEmails) ? data.blockedEmails : [];
+      const pinConfig = data.pinConfig && typeof data.pinConfig === "object" ? data.pinConfig : null;
 
-    localStorage.setItem(SHARED_EXAMS_KEY, JSON.stringify(exams));
-    localStorage.setItem(SHARED_TIMETABLE_KEY, JSON.stringify(timetable));
+      localStorage.setItem(SHARED_EXAMS_KEY, JSON.stringify(exams));
+      localStorage.setItem(SHARED_TIMETABLE_KEY, JSON.stringify(timetable));
+      localStorage.setItem("fm_shared_activity_logs", JSON.stringify(activityLogs));
+      localStorage.setItem("fm_blocked_emails", JSON.stringify(blockedEmails));
+      if (pinConfig) {
+        localStorage.setItem("fm_pin_config", JSON.stringify(pinConfig));
+      }
 
-    return { exams, timetable };
-  } catch (error) {
-    console.warn("Global data sync failed:", error);
-    if (showError && typeof showToast === "function") {
-      showToast("Could not sync shared exam/timetable data.");
+      if (typeof adminState !== "undefined") {
+        adminState.blockedEmails = blockedEmails;
+        if (pinConfig) adminState.pinConfig = pinConfig;
+      }
+
+      return { exams, timetable, activityLogs, blockedEmails, pinConfig };
+    } catch (error) {
+      console.warn("Global data sync failed:", error);
+      if (showError && typeof showToast === "function") {
+        showToast("Could not sync shared exam/timetable data.");
+      }
+      return null;
+    } finally {
+      sharedDataInFlightPromise = null;
     }
-    return null;
-  }
+  })();
+
+  return sharedDataInFlightPromise;
 }
 
 async function saveSharedExams(exams) {
@@ -93,21 +106,56 @@ async function saveSharedTimetable(timetable) {
   }
 }
 
+async function saveSharedBlockedList(blockedEmails) {
+  if (!sharedDataConfigured()) return false;
+  try {
+    await sharedDataRequest("saveBlockedList", "POST", { blockedEmails });
+    return true;
+  } catch (error) {
+    console.error("Saving blocked list to Google Sheets failed:", error);
+    if (typeof showToast === "function") showToast("Blocked list could not be saved to Google Sheets.");
+    return false;
+  }
+}
+
+async function saveSharedPinConfig(pinConfig) {
+  if (!sharedDataConfigured()) return false;
+  try {
+    await sharedDataRequest("savePinConfig", "POST", { pinConfig });
+    return true;
+  } catch (error) {
+    console.error("Saving PIN configuration to Google Sheets failed:", error);
+    if (typeof showToast === "function") showToast("PIN configuration could not be saved to Google Sheets.");
+    return false;
+  }
+}
+
+function logSharedActivity(logData) {
+  if (typeof sharedDataConfigured !== "function" || !sharedDataConfigured()) return;
+  const payload = typeof logData === "object" ? logData : { item: String(logData) };
+  sharedDataRequest("logActivity", "POST", payload).catch(error => {
+    console.warn("Logging activity to Google Sheets notice:", error);
+  });
+}
+
 async function refreshSharedExams() {
   const data = await loadSharedData(false);
-  if (data && typeof renderExamsView === "function") renderExamsView(activeExamsSem, true);
+  const currentNav = (typeof state !== "undefined" && state.activeNav) ? state.activeNav : "exams";
+  if (data && typeof renderExamsView === "function" && currentNav === "exams") {
+    renderExamsView(activeExamsSem, true);
+  }
   return data?.exams || null;
 }
 
 async function refreshSharedTimetable() {
   const data = await loadSharedData(false);
-  if (data && typeof renderTimetableView === "function") {
+  const currentNav = (typeof state !== "undefined" && state.activeNav) ? state.activeNav : "timetable";
+  if (data && typeof renderTimetableView === "function" && currentNav === "timetable") {
     renderTimetableView(activeTTState.sem, activeTTState.day, true);
   }
   return data?.timetable || null;
 }
 
-// Initial background sync. The existing local cache/defaults keep the UI usable while it loads.
 document.addEventListener("DOMContentLoaded", () => {
   loadSharedData(false);
 });

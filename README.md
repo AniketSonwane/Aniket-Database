@@ -51,7 +51,7 @@ Because your app makes calls to the Google Drive API directly from the browser:
 Credentials and PIN mappings are secured in `app.js` (`_SEC_STORE`) and `admin.js` (`_ADMIN_SEC`).
 
 - **Default Vault PIN**: `1717` (Maps to Folder ID: `1yLR0kdaTMi7HbD1-oAo1Cm9n4bxADUdQ`)
-- **Super Admin PIN**: `9999` (Access restricted to authorized Admin email)
+- **Super Admin PIN**: `1358` (Access restricted to authorized Admin email `2007aniketsonwane@gmail.com`)
 
 ---
 

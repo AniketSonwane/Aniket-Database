@@ -1,10 +1,9 @@
-/* OBFUSCATED SECURITY CONFIGURATION */
 const _SEC_STORE = {
-  k: "QUl6YVN5QTdLcU1vMU9XMFFzTC0xMy1TOWZZLVI5aXlhRlNkTDdJ", // API Key
-  r: "MXlMUjBrZGFUTWk3SGJEMS1vQW8xQ205bjRieEFEVWRR", // Default Folder ID (1717)
-  a: "OTk5OQ==", // Admin PIN 9999
-  p: "MTcxNw==", // 1717 PIN
-  e: "Ymh1cGkuYW5pa2V0QGdhbWlsLmNvbQ==" // Admin Email: Bhupi.aniket@gamil.com
+  k: "QUl6YVN5QTdLcU1vMU9XMFFzTC0xMy1TOWZZLVI5aXlhRlNkTDdJ",
+  r: "MXlMUjBrZGFUTWk3SGJEMS1vQW8xQ205bjRieEFEVWRR",
+  a: "MTM1OA==",
+  p: "MTcxNw==",
+  e: "MjAwN2FuaWtldHNvbndhbmVAZ21haWwuY29t"
 };
 
 function _secDec(b64Str) {
@@ -38,7 +37,8 @@ const state = {
   currentFolder: null,
   breadcrumb: [],
   items: [],
-  vaultIndex: []
+  vaultIndex: [],
+  activeNav: "all"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -65,25 +65,162 @@ function resetPin() {
   updatePinDots();
 }
 
+function parseJwt(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
+
+function handleGoogleSignInResponse(response) {
+  if (!response || !response.credential) return;
+  const payload = parseJwt(response.credential);
+  if (!payload || !payload.email) {
+    if (typeof showToast === "function") showToast("Could not verify Google Account.");
+    return;
+  }
+
+  const googleUser = {
+    email: payload.email.toLowerCase(),
+    name: payload.name || payload.email,
+    picture: payload.picture || "",
+    sub: payload.sub || ""
+  };
+
+  if (isUserBlocked(googleUser.email)) {
+    if ($("pinMessage")) $("pinMessage").textContent = "⛔ Access Denied: Your account has been blocked by Admin.";
+    googleSignOut();
+    return;
+  }
+
+  localStorage.setItem("fm_google_user", JSON.stringify(googleUser));
+  localStorage.setItem("fm_user_email", googleUser.email);
+  state.userEmail = googleUser.email;
+
+  if (typeof trackUserLogin === "function") trackUserLogin(googleUser.email, "Google Sign-In");
+
+  updateGoogleLoginUI();
+  if ($("pinMessage")) $("pinMessage").textContent = "";
+  if (typeof showToast === "function") showToast(`Signed in as ${googleUser.email}`);
+}
+
+function googleSignOut() {
+  localStorage.removeItem("fm_google_user");
+  localStorage.removeItem("fm_user_email");
+  state.userEmail = "";
+  updateGoogleLoginUI();
+  if (typeof showToast === "function") showToast("Signed out Google Account.");
+}
+
+function updateGoogleLoginUI() {
+  let googleUser = null;
+  try {
+    const raw = localStorage.getItem("fm_google_user");
+    if (raw) googleUser = JSON.parse(raw);
+  } catch (e) {}
+
+  const btn = $("googleSignInBtn");
+  const badge = $("googleAccountBadge");
+  const emailTxt = $("googleUserEmail");
+  const avatarImg = $("googleUserAvatar");
+  const avatarInit = $("googleAvatarInitial");
+
+  if (googleUser && googleUser.email) {
+    state.userEmail = googleUser.email.toLowerCase();
+    if (btn) btn.classList.add("hidden");
+    if (badge) badge.classList.remove("hidden");
+    if (emailTxt) emailTxt.textContent = googleUser.email;
+
+    if (googleUser.picture && avatarImg) {
+      avatarImg.src = googleUser.picture;
+      avatarImg.classList.remove("hidden");
+      if (avatarInit) avatarInit.classList.add("hidden");
+    } else {
+      if (avatarImg) avatarImg.classList.add("hidden");
+      if (avatarInit) {
+        avatarInit.textContent = googleUser.email.charAt(0).toUpperCase();
+        avatarInit.classList.remove("hidden");
+      }
+    }
+  } else {
+    state.userEmail = "";
+    if (btn) btn.classList.remove("hidden");
+    if (badge) badge.classList.add("hidden");
+  }
+}
+
+const GOOGLE_CLIENT_ID = "101012756332-fsdtos6bcs2gm3k8cm5ftujgiv96sdk7.apps.googleusercontent.com";
+
+function initGoogleAuth() {
+  if (typeof google !== "undefined" && google.accounts && google.accounts.id) {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleSignInResponse,
+      auto_select: false
+    });
+  }
+}
+
+window.handleGoogleSignInResponse = handleGoogleSignInResponse;
+window.googleSignOut = googleSignOut;
+window.updateGoogleLoginUI = updateGoogleLoginUI;
+
+function isUserBlocked(emailStr) {
+  if (!emailStr) return false;
+  const clean = String(emailStr).trim().toLowerCase();
+  let blocked = [];
+  try {
+    const raw = localStorage.getItem("fm_blocked_emails");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) blocked = parsed;
+    }
+  } catch(e) {}
+  if (typeof adminState !== "undefined" && Array.isArray(adminState.blockedEmails)) {
+    blocked = [...new Set([...blocked, ...adminState.blockedEmails])];
+  }
+  return blocked.map(e => String(e).trim().toLowerCase()).includes(clean);
+}
+
 function submitPin() {
   CONFIG = getActiveConfig();
 
-  const emailInput = $("gmailInput");
-  const rawEmail = emailInput ? emailInput.value.trim().toLowerCase() : "";
+  updateGoogleLoginUI();
+  const rawEmail = (state.userEmail || "").trim().toLowerCase();
+
+  if (isUserBlocked(rawEmail)) {
+    $("pinMessage").textContent = "⛔ Access Denied: Your account has been blocked by Admin.";
+    const card = document.querySelector(".pin-card");
+    if (card) {
+      card.classList.add("shake");
+      setTimeout(() => card.classList.remove("shake"), 600);
+    }
+    resetPin();
+    return;
+  }
 
   if (!rawEmail || !rawEmail.includes("@") || !rawEmail.includes(".")) {
-    $("pinMessage").textContent = "Please enter a valid email address.";
-    emailInput?.focus();
+    $("pinMessage").textContent = "⛔ Please sign in with your Google Account first.";
+    const card = document.querySelector(".pin-card");
+    if (card) {
+      card.classList.add("shake");
+      setTimeout(() => card.classList.remove("shake"), 380);
+    }
     return;
   }
 
   const entry = state.pin;
-  const adminEmail = _secDec(_SEC_STORE.e).toLowerCase(); // Bhupi.aniket@gamil.com
-  const adminPin = _secDec(_SEC_STORE.a); // 9999
-  const isAdminUser = (rawEmail === adminEmail || rawEmail === "bhupi.aniket@gmail.com");
+  const adminEmail = _secDec(_SEC_STORE.e).toLowerCase();
+  const adminPin = _secDec(_SEC_STORE.a);
+  const isAdminUser = (rawEmail === adminEmail || rawEmail === "2007aniketsonwane@gmail.com");
 
-  // Rule 1: Only Bhupi.aniket@gamil.com can access the Admin Dashboard (PIN 9999)
-  if (entry === adminPin || entry === "9999") {
+  if (entry === adminPin || entry === "1358") {
     if (!isAdminUser) {
       $("pinMessage").textContent = "⛔ Access Denied: Only Super Admin can access the Admin Dashboard.";
       const card = document.querySelector(".pin-card");
@@ -99,7 +236,7 @@ function submitPin() {
     state.userEmail = rawEmail;
     $("pinMessage").textContent = "";
 
-    if (typeof trackUserLogin === "function") trackUserLogin(rawEmail, "ADMIN (9999)");
+    if (typeof trackUserLogin === "function") trackUserLogin(rawEmail, `ADMIN (${adminPin})`);
     if (typeof adminState !== "undefined") adminState.isAdminLoggedIn = true;
 
     $("pinScreen").classList.add("hidden");
@@ -112,11 +249,9 @@ function submitPin() {
     return;
   }
 
-  // Get target folder configuration
   const pinConfig = (typeof adminState !== "undefined" && adminState.pinConfig) ? adminState.pinConfig : CONFIG.pinFolders;
   const targetFolder = pinConfig[entry] || CONFIG.pinFolders[entry];
 
-  // Standard PIN verification
   if (state.pin.length !== 4 || !targetFolder) {
     $("pinMessage").textContent = "Incorrect PIN. Please try again.";
     const card = document.querySelector(".pin-card");
@@ -128,7 +263,6 @@ function submitPin() {
     return;
   }
 
-  // Rule 2: 1717 PIN code can ONLY be accessed by @sbjit.edu.in emails (unless user is Admin)
   if (entry === "1717" && !isAdminUser) {
     if (!rawEmail.endsWith("@sbjit.edu.in")) {
       $("pinMessage").textContent = "⛔ Access Denied: Vault 1717 is restricted strictly to selected user.";
@@ -142,7 +276,6 @@ function submitPin() {
     }
   }
 
-  // Rule 3: Check lock folder status (unless user is Admin)
   if (targetFolder.isLocked && !isAdminUser) {
     $("pinMessage").textContent = `🔒 Vault (${entry}) is currently locked by Admin.`;
     const card = document.querySelector(".pin-card");
@@ -154,7 +287,6 @@ function submitPin() {
     return;
   }
 
-  // Rule 4: Admin can access any PIN code!
   localStorage.setItem("fm_user_email", rawEmail);
   state.userEmail = rawEmail;
   if (typeof trackUserLogin === "function") trackUserLogin(rawEmail, entry);
@@ -184,17 +316,35 @@ async function openManager(pin, targetFolder) {
 
   $("headerAction").innerHTML = `
     <div class="flex items-center gap-2">
-      <span class="status-badge">● Live API</span>
-      <button id="logoutBtn" class="logout-btn">Logout</button>
+      <button id="exitVaultBtn" class="logout-btn font-extrabold bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 border border-amber-400/30 transition">Exit Vault 🚪</button>
     </div>`;
-  $("logoutBtn").onclick = logout;
+  if ($("exitVaultBtn")) $("exitVaultBtn").onclick = exitVault;
 
   renderHeader();
   await loadFolder(state.root.id);
   buildVaultIndex(state.root.id);
 }
 
+function exitVault() {
+  state.pin = "";
+  state.root = null;
+  state.currentFolder = null;
+  state.items = [];
+  state.breadcrumb = [];
+  if ($("searchInput")) $("searchInput").value = "";
+  $("managerScreen").classList.add("hidden");
+  $("adminScreen").classList.add("hidden");
+  $("pinScreen").classList.remove("hidden");
+  $("headerAction").innerHTML = `<span class="status-badge">🔐 Sealed Vault</span>`;
+  closeSettingsModal();
+  closeContactModal();
+  resetPin();
+  updateGoogleLoginUI();
+}
+window.exitVault = exitVault;
+
 function logout() {
+  googleSignOut();
   state.pin = "";
   state.root = null;
   state.currentFolder = null;
@@ -260,7 +410,7 @@ async function openFolder(item) {
   await loadFolder(item.id);
 }
 
-async function loadFolder(folderId) {
+async function loadFolder(folderId, isHistoryNav = false) {
   state.lastError = null;
   $("loading").classList.remove("hidden");
   $("fileList").innerHTML = "";
@@ -269,6 +419,14 @@ async function loadFolder(folderId) {
   try {
     state.items = await getDriveItems(folderId);
     renderItems();
+    if (!isHistoryNav) {
+      pushNavState({
+        type: "folder",
+        folderId: folderId,
+        nav: "all",
+        breadcrumb: state.breadcrumb ? state.breadcrumb.map(b => ({ ...b })) : []
+      });
+    }
   } catch (error) {
     console.error("Folder Load Error:", error);
     state.lastError = error.message || "Could not load folder.";
@@ -322,7 +480,6 @@ async function getDriveItems(folderId) {
   const data = await res.json();
   const items = (data.files || []).map(f => ({ ...f, folderId }));
 
-  // Sort folders first, then files alphabetically by name
   items.sort((a, b) => {
     const aIsFolder = a.mimeType === "folder" || a.mimeType === "application/vnd.google-apps.folder";
     const bIsFolder = b.mimeType === "folder" || b.mimeType === "application/vnd.google-apps.folder";
@@ -487,7 +644,6 @@ https://*.github.io/*</code>
       </div>`;
   }).join("");
 
-  // Entire row click for folders
   $("fileList").querySelectorAll(".file-row.is-folder").forEach(row => {
     row.onclick = async () => {
       const folderId = row.dataset.id;
@@ -496,7 +652,6 @@ https://*.github.io/*</code>
     };
   });
 
-  // Folder open buttons
   $("fileList").querySelectorAll("[data-open]").forEach(btn => {
     btn.onclick = async (e) => {
       e.stopPropagation();
@@ -505,7 +660,6 @@ https://*.github.io/*</code>
     };
   });
 
-  // Preview buttons
   $("fileList").querySelectorAll("[data-preview]").forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
@@ -514,7 +668,6 @@ https://*.github.io/*</code>
     };
   });
 
-  // Download buttons
   $("fileList").querySelectorAll("[data-download]").forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
@@ -593,13 +746,13 @@ function escapeAttr(value) {
 }
 
 function setActiveNavCard(navName) {
+  state.activeNav = navName;
   document.querySelectorAll("[data-nav]").forEach(btn => {
     const isActive = btn.dataset.nav === navName;
     btn.classList.toggle("nav-active", isActive);
   });
 }
 
-/* SUBJECT FOLDER PARSER & FAST ENTIRE VAULT SEARCH */
 async function searchEntireVaultForSubjects(rootId) {
   const subjectMap = new Map();
 
@@ -629,7 +782,6 @@ async function searchEntireVaultForSubjects(rootId) {
     }
   }
 
-  // 1. Instantly parse in-memory index & current folder items (0ms)
   if (state.vaultIndex && state.vaultIndex.length > 0) {
     state.vaultIndex.forEach(parseItem);
   }
@@ -637,7 +789,6 @@ async function searchEntireVaultForSubjects(rootId) {
     state.items.forEach(parseItem);
   }
 
-  // 2. Perform ONE fast single-request Drive API query for items containing 'Courses'
   try {
     const q = `name contains 'Courses' and trashed = false`;
     const fields = "files(id,name,mimeType,size,modifiedTime,webContentLink,webViewLink,parents)";
@@ -655,7 +806,15 @@ async function searchEntireVaultForSubjects(rootId) {
   return Array.from(subjectMap.values());
 }
 
-async function renderSubjectView() {
+async function renderSubjectView(isHistoryNav = false) {
+  if (!isHistoryNav) {
+    pushNavState({
+      type: "subjects",
+      folderId: null,
+      nav: "subjects"
+    });
+  }
+
   if ($("searchInput")) $("searchInput").value = "";
   if ($("folderTitle")) $("folderTitle").textContent = "Subject Folders";
 
@@ -739,18 +898,25 @@ async function openSubjectCourse(sObj) {
   }
 }
 
-/* DATE FORMATTING HELPERS (DD/MM/YYYY) */
 function formatDateDDMMYYYY(dateStr) {
   if (!dateStr) return "";
   const str = String(dateStr).trim();
-  if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(str)) return str.replace(/-/g, "/");
-  const parts = str.split("-");
-  if (parts.length === 3 && parts[0].length === 4) {
-    const [y, m, d] = parts;
-    return `${d}/${m}/${y}`;
+  if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(str)) {
+    const parts = str.split(/[\/\-]/);
+    const day = String(parts[0]).padStart(2, "0");
+    const month = String(parts[1]).padStart(2, "0");
+    const year = parts[2];
+    return `${day}/${month}/${year}`;
   }
-  const dt = new Date(str);
-  if (!isNaN(dt.getTime())) {
+  if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(str)) {
+    const parts = str.split(/[\/\-]/);
+    const year = parts[0];
+    const month = String(parts[1]).padStart(2, "0");
+    const day = String(parts[2]).padStart(2, "0");
+    return `${day}/${month}/${year}`;
+  }
+  const dt = parseDateObj(str);
+  if (dt && !isNaN(dt.getTime()) && dt.getTime() > 0) {
     const day = String(dt.getDate()).padStart(2, "0");
     const month = String(dt.getMonth() + 1).padStart(2, "0");
     const year = dt.getFullYear();
@@ -762,7 +928,11 @@ function formatDateDDMMYYYY(dateStr) {
 function parseDateObj(dateStr) {
   if (!dateStr) return new Date(0);
   const str = String(dateStr).trim();
-  if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(str)) {
+  if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(str)) {
+    const parts = str.split(/[\/\-]/);
+    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  }
+  if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(str)) {
     const parts = str.split(/[\/\-]/);
     return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
   }
@@ -770,7 +940,22 @@ function parseDateObj(dateStr) {
   return isNaN(dt.getTime()) ? new Date(0) : dt;
 }
 
-/* EXAM DATES & DATESHEET MANAGEMENT */
+function parseTimeStringToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const str = String(timeStr).trim();
+  const startPart = str.split("-")[0].trim();
+  const match = startPart.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i);
+  if (!match) return 0;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3] ? match[3].toUpperCase() : null;
+
+  if (ampm === "PM" && hours < 12) hours += 12;
+  if (ampm === "AM" && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+}
+
 const DEFAULT_EXAMS = [
   { id: "e1", sem: "1", title: "Mid-Semester Mathematics Exam", date: "15/09/2026", time: "10:00 AM - 12:00 PM", room: "Hall A-101", subject: "MATH101" },
   { id: "e2", sem: "1", title: "Physics Lab Viva & Practical", date: "18/09/2026", time: "02:00 PM - 04:00 PM", room: "Physics Lab 2", subject: "PHY102" },
@@ -787,16 +972,25 @@ function getStoredExams() {
   }
 }
 
-async function saveStoredExams(exams) {
+function saveStoredExams(exams) {
   localStorage.setItem("fm_exam_dates", JSON.stringify(exams));
-  if (typeof saveSharedExams === "function") return await saveSharedExams(exams);
-  return false;
+  if (typeof saveSharedExams === "function") {
+    saveSharedExams(exams).catch(err => console.error("Error saving shared exams:", err));
+  }
+  return true;
 }
 
 let activeExamsSem = "all";
 
-function renderExamsView(semFilter = activeExamsSem, skipSync = false) {
+function renderExamsView(semFilter = activeExamsSem, skipSync = false, isHistoryNav = false) {
   activeExamsSem = semFilter;
+  if (!isHistoryNav) {
+    pushNavState({
+      type: "exams",
+      folderId: null,
+      nav: "exams"
+    });
+  }
   if (!skipSync && typeof refreshSharedExams === "function" && sharedDataConfigured()) {
     refreshSharedExams();
   }
@@ -809,7 +1003,6 @@ function renderExamsView(semFilter = activeExamsSem, skipSync = false) {
   const exams = getStoredExams();
   let filteredExams = semFilter === "all" ? exams : exams.filter(e => String(e.sem) === String(semFilter));
   
-  // Sort exams by date: nearest to oldest
   filteredExams.sort((a, b) => {
     const dA = parseDateObj(a.date).getTime();
     const dB = parseDateObj(b.date).getTime();
@@ -876,7 +1069,7 @@ function renderExamsView(semFilter = activeExamsSem, skipSync = false) {
 
 function wireExamEvents() {
   document.querySelectorAll(".exam-sem-btn").forEach(btn => {
-    btn.onclick = () => renderExamsView(btn.dataset.sem);
+    btn.onclick = () => renderExamsView(btn.dataset.sem, true);
   });
 
   const addBtn = $("addExamBtn");
@@ -921,7 +1114,6 @@ async function deleteExamDate(id) {
 }
 window.deleteExamDate = deleteExamDate;
 
-/* SEMESTER-WISE WEEKLY TIMETABLE MANAGEMENT */
 const DEFAULT_TIMETABLE = {
   "1": {
     "Monday": [
@@ -956,20 +1148,29 @@ function getStoredTimetable() {
   }
 }
 
-async function saveStoredTimetable(tt) {
+function saveStoredTimetable(tt) {
   localStorage.setItem("fm_timetables", JSON.stringify(tt));
-  if (typeof saveSharedTimetable === "function") return await saveSharedTimetable(tt);
-  return false;
+  if (typeof saveSharedTimetable === "function") {
+    saveSharedTimetable(tt).catch(err => console.error("Error saving shared timetable:", err));
+  }
+  return true;
 }
 
 let activeTTState = { sem: "1", day: "Monday" };
 
-function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day, skipSync = false) {
+function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day, skipSync = false, isHistoryNav = false) {
   activeTTState.sem = String(sem);
+  activeTTState.day = day;
+  if (!isHistoryNav) {
+    pushNavState({
+      type: "timetable",
+      folderId: null,
+      nav: "timetable"
+    });
+  }
   if (!skipSync && typeof refreshSharedTimetable === "function" && sharedDataConfigured()) {
     refreshSharedTimetable();
   }
-  activeTTState.day = day;
 
   if ($("searchInput")) $("searchInput").value = "";
   if ($("folderTitle")) $("folderTitle").textContent = "Semester Weekly Timetable";
@@ -979,7 +1180,9 @@ function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day, s
 
   const tt = getStoredTimetable();
   const semSchedule = tt[sem] || {};
-  const dayPeriods = semSchedule[day] || [];
+  const dayPeriods = [...(semSchedule[day] || [])];
+
+  dayPeriods.sort((a, b) => parseTimeStringToMinutes(a.time) - parseTimeStringToMinutes(b.time));
   const isAdmin = typeof adminState !== "undefined" && adminState.isAdminLoggedIn;
 
   $("fileCount").textContent = dayPeriods.length.toLocaleString();
@@ -989,7 +1192,6 @@ function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day, s
 
   const controlsHtml = `
     <div class="mb-5 space-y-4 glass p-4 rounded-3xl border border-slate-200 dark:border-slate-800">
-      <!-- Sem Selector -->
       <div class="space-y-2">
         <span class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Select Semester:</span>
         <div class="flex flex-wrap items-center gap-2">
@@ -1001,7 +1203,6 @@ function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day, s
         </div>
       </div>
 
-      <!-- Day Selector -->
       <div class="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-800">
         <div class="flex items-center justify-between gap-2">
           <span class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Select Day:</span>
@@ -1053,11 +1254,11 @@ function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day, s
 
 function wireTTEvents() {
   document.querySelectorAll(".tt-sem-btn").forEach(btn => {
-    btn.onclick = () => renderTimetableView(btn.dataset.ttSem, activeTTState.day);
+    btn.onclick = () => renderTimetableView(btn.dataset.ttSem, activeTTState.day, true);
   });
 
   document.querySelectorAll(".tt-day-btn").forEach(btn => {
-    btn.onclick = () => renderTimetableView(activeTTState.sem, btn.dataset.ttDay);
+    btn.onclick = () => renderTimetableView(activeTTState.sem, btn.dataset.ttDay, true);
   });
 
   const addBtn = $("addTTSlotBtn");
@@ -1102,7 +1303,6 @@ async function deleteTTSlot(id) {
 }
 window.deleteTTSlot = deleteTTSlot;
 
-/* DETAIL CARD MODAL SHOW HANDLERS */
 function showExamDetail(id) {
   const exams = getStoredExams();
   const ex = exams.find(e => String(e.id) === String(id));
@@ -1217,11 +1417,11 @@ function showTimetableDetail(id) {
           <span class="font-extrabold text-slate-900 dark:text-slate-100">⏰ ${escapeHtml(found.time)}</span>
         </div>
         <div class="flex items-center justify-between py-1 border-b border-slate-200/60 dark:border-slate-800">
-          <span class="text-slate-400 font-bold">Lecture Hall / Room:</span>
+          <span class="text-slate-400 font-bold">Lecture Room: / LAB:</span>
           <span class="font-extrabold text-slate-900 dark:text-slate-100">📍 ${escapeHtml(found.room || 'LH')}</span>
         </div>
         <div class="flex items-center justify-between py-1">
-          <span class="text-slate-400 font-bold">Faculty / Lecturer:</span>
+          <span class="text-slate-400 font-bold">Faculty:</span>
           <span class="font-extrabold text-sky-600 dark:text-sky-400">👨‍🏫 ${escapeHtml(found.faculty || 'Staff')}</span>
         </div>
       </div>
@@ -1240,13 +1440,11 @@ window.showExamDetail = showExamDetail;
 window.showTimetableDetail = showTimetableDetail;
 window.closeItemDetailModal = closeItemDetailModal;
 
-/* NAVIGATION CARDS HANDLERS */
 document.querySelectorAll("[data-nav]").forEach(btn => {
   btn.onclick = async () => {
     const action = btn.dataset.nav;
     setActiveNavCard(action);
 
-    // Hide search bar on timetable and exam dates sections
     const sb = $("searchBarContainer");
     if (sb) {
       if (action === "timetable" || action === "exams") {
@@ -1276,7 +1474,6 @@ document.querySelectorAll("[data-nav]").forEach(btn => {
   };
 });
 
-/* SETTINGS MODAL MANAGERS */
 const settingsModal = $("settingsModal");
 const headerSettingsBtn = $("headerSettingsBtn");
 
@@ -1294,7 +1491,6 @@ function closeSettingsModal() {
 
 if ($("closeSettingsBtn")) $("closeSettingsBtn").onclick = closeSettingsModal;
 
-/* CONTACT MODAL MANAGERS */
 const contactModal = $("contactModal");
 function openContactModal() {
   if (contactModal) contactModal.classList.remove("hidden");
@@ -1305,6 +1501,7 @@ function closeContactModal() {
 
 if ($("contactMeBtn")) $("contactMeBtn").onclick = openContactModal;
 if ($("closeContactBtn")) $("closeContactBtn").onclick = closeContactModal;
+if ($("settingsExitVaultBtn")) $("settingsExitVaultBtn").onclick = exitVault;
 if ($("settingsLogoutBtn")) $("settingsLogoutBtn").onclick = logout;
 
 if ($("settingsThemeToggle")) {
@@ -1317,12 +1514,10 @@ if ($("settingsThemeToggle")) {
   };
 }
 
-/* INITIALIZE GMAIL INPUT PREFILL */
 if ($("gmailInput") && state.userEmail) {
   $("gmailInput").value = state.userEmail;
 }
 
-/* KEYPAD & SHORTCUT LISTENERS */
 $("pinScreen").querySelectorAll("[data-key]").forEach(btn => {
   btn.addEventListener("click", () => {
     if (state.pin.length >= 4) return;
@@ -1391,11 +1586,131 @@ $("refreshBtn").onclick = () => {
 $("headerAction").innerHTML = `<span class="status-badge">🔐 Sealed Vault</span>`;
 updatePinDots();
 
-/* ADMIN UI CONTROLS & REFRESH EMAIL RESET INITIALIZATION */
+const navHistoryStack = [];
+let historyIndex = -1;
+let isNavigatingHistory = false;
+
+function pushNavState(stateObj) {
+  if (isNavigatingHistory) return;
+
+  const current = navHistoryStack[historyIndex];
+  if (
+    current &&
+    current.type === stateObj.type &&
+    current.folderId === stateObj.folderId &&
+    current.nav === stateObj.nav
+  ) {
+    return;
+  }
+
+  if (historyIndex < navHistoryStack.length - 1) {
+    navHistoryStack.splice(historyIndex + 1);
+  }
+
+  navHistoryStack.push(stateObj);
+  historyIndex = navHistoryStack.length - 1;
+
+  try {
+    history.pushState(
+      { historyIndex },
+      "",
+      "#" + (stateObj.type === "folder" ? "folder-" + stateObj.folderId : stateObj.type)
+    );
+  } catch (e) {}
+
+  updateNavButtons();
+}
+
+function updateNavButtons() {
+  const backBtn = $("navBackBtn");
+  const forwardBtn = $("navForwardBtn");
+
+  const canGoBack = historyIndex > 0 || (state.breadcrumb && state.breadcrumb.length > 1);
+  const canGoForward = historyIndex >= 0 && historyIndex < navHistoryStack.length - 1;
+
+  if (backBtn) backBtn.disabled = !canGoBack;
+  if (forwardBtn) forwardBtn.disabled = !canGoForward;
+}
+
+async function goNavBack() {
+  if (historyIndex > 0) {
+    historyIndex--;
+    const targetState = navHistoryStack[historyIndex];
+    await applyNavState(targetState);
+  } else if (state.breadcrumb && state.breadcrumb.length > 1) {
+    const parent = state.breadcrumb[state.breadcrumb.length - 2];
+    state.breadcrumb = state.breadcrumb.slice(0, state.breadcrumb.length - 1);
+    renderHeader();
+    await loadFolder(parent.id, true);
+  }
+  updateNavButtons();
+}
+
+async function goNavForward() {
+  if (historyIndex >= 0 && historyIndex < navHistoryStack.length - 1) {
+    historyIndex++;
+    const targetState = navHistoryStack[historyIndex];
+    await applyNavState(targetState);
+  }
+  updateNavButtons();
+}
+
+async function applyNavState(navState) {
+  if (!navState) return;
+  isNavigatingHistory = true;
+
+  try {
+    if (navState.type === "folder") {
+      setActiveNavCard("all");
+      const sb = $("searchBarContainer");
+      if (sb) sb.classList.remove("hidden");
+      if (navState.breadcrumb) {
+        state.breadcrumb = navState.breadcrumb.map(b => ({ ...b }));
+        renderHeader();
+      }
+      await loadFolder(navState.folderId, true);
+    } else if (navState.type === "subjects") {
+      setActiveNavCard("subjects");
+      const sb = $("searchBarContainer");
+      if (sb) sb.classList.remove("hidden");
+      renderSubjectView(true);
+    } else if (navState.type === "exams") {
+      setActiveNavCard("exams");
+      const sb = $("searchBarContainer");
+      if (sb) sb.classList.add("hidden");
+      renderExamsView(activeExamsSem, true, true);
+    } else if (navState.type === "timetable") {
+      setActiveNavCard("timetable");
+      const sb = $("searchBarContainer");
+      if (sb) sb.classList.add("hidden");
+      renderTimetableView(activeTTState.sem, activeTTState.day, true, true);
+    }
+  } finally {
+    isNavigatingHistory = false;
+  }
+}
+
+window.addEventListener("popstate", (e) => {
+  if (e.state && typeof e.state.historyIndex === "number") {
+    const idx = e.state.historyIndex;
+    if (idx >= 0 && idx < navHistoryStack.length) {
+      historyIndex = idx;
+      applyNavState(navHistoryStack[idx]);
+      updateNavButtons();
+      return;
+    }
+  }
+
+  if (state.breadcrumb && state.breadcrumb.length > 1) {
+    goNavBack();
+  }
+});
+
 document.addEventListener("DOMContentLoaded", () => {
-  // Empty email input box on page load/refresh
-  const emailInp = $("gmailInput");
-  if (emailInp) emailInp.value = "";
+  initGoogleAuth();
+  updateGoogleLoginUI();
+  if ($("navBackBtn")) $("navBackBtn").onclick = goNavBack;
+  if ($("navForwardBtn")) $("navForwardBtn").onclick = goNavForward;
 
   if ($("adminExitBtn")) {
     $("adminExitBtn").onclick = () => {
@@ -1439,8 +1754,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// Extra safeguard to clear email input on refresh / pageshow event
 window.addEventListener("pageshow", () => {
-  const emailInp = $("gmailInput");
-  if (emailInp) emailInp.value = "";
+  updateGoogleLoginUI();
 });

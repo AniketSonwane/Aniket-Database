@@ -1,11 +1,7 @@
-/*
-  ADMIN & VISITOR TELEMETRY ENGINE (admin.js)
-*/
-
 const _ADMIN_SEC = {
-  a: "OTk5OQ==", // 9999
-  r: "MXlMUjBrZGFUTWk3SGJEMS1vQW8xQ205bjRieEFEVWRR", // Folder ID
-  e: "Ymh1cGkuYW5pa2V0QGdhbWlsLmNvbQ==" // Bhupi.aniket@gamil.com
+  a: "MTM1OA==",
+  r: "MXlMUjBrZGFUTWk3SGJEMS1vQW8xQ205bjRieEFEVWRR",
+  e: "MjAwN2FuaWtldHNvbndhbmVAZ21haWwuY29t"
 };
 
 function _adminDec(str) {
@@ -18,12 +14,12 @@ const adminState = {
   isAdminLoggedIn: false,
   visitorLogs: [],
   userStats: {},
+  blockedEmails: [],
   pinConfig: {
     "1717": { id: _adminDec(_ADMIN_SEC.r), name: "Academics" }
   }
 };
 
-// Load saved data from localStorage
 function initAdminData() {
   try {
     const savedLogs = localStorage.getItem("fm_visitor_logs");
@@ -31,6 +27,14 @@ function initAdminData() {
 
     const savedStats = localStorage.getItem("fm_user_stats");
     if (savedStats) adminState.userStats = JSON.parse(savedStats);
+
+    const savedBlocked = localStorage.getItem("fm_blocked_emails");
+    if (savedBlocked) {
+      try {
+        const parsed = JSON.parse(savedBlocked);
+        if (Array.isArray(parsed)) adminState.blockedEmails = parsed;
+      } catch (err) {}
+    }
 
     const savedPins = localStorage.getItem("fm_pin_config");
     if (savedPins) {
@@ -42,9 +46,8 @@ function initAdminData() {
       } catch (err) {}
     }
 
-    // Always ensure PIN 1717 uses the exact configured Folder ID
-    const defaultFolderId = _adminDec(_ADMIN_SEC.r); // 1yLR0kdaTMi7HbD1-oAo1Cm9n4bxADUdQ
-    if (!adminState.pinConfig["1717"] || adminState.pinConfig["1717"].id !== defaultFolderId) {
+    const defaultFolderId = _adminDec(_ADMIN_SEC.r);
+    if (!adminState.pinConfig["1717"]) {
       adminState.pinConfig["1717"] = {
         id: defaultFolderId,
         name: "Academics"
@@ -60,9 +63,11 @@ initAdminData();
 
 function savePinConfig() {
   localStorage.setItem("fm_pin_config", JSON.stringify(adminState.pinConfig));
+  if (typeof saveSharedPinConfig === "function") {
+    saveSharedPinConfig(adminState.pinConfig);
+  }
 }
 
-// Track user login telemetry
 function trackUserLogin(email, pinUsed) {
   if (!email) return;
   initAdminData();
@@ -96,9 +101,17 @@ function trackUserLogin(email, pinUsed) {
   adminState.userStats[email].lastSeen = now;
   adminState.userStats[email].lastPin = pinUsed;
   localStorage.setItem("fm_user_stats", JSON.stringify(adminState.userStats));
+
+  if (typeof logSharedActivity === "function") {
+    logSharedActivity({
+      email: email,
+      vault: String(pinUsed || "1717"),
+      timestamp: now,
+      item: `Login / Access Vault (${pinUsed})`
+    });
+  }
 }
 
-// Track user file download
 function trackUserDownload(email, fileName) {
   if (!email) return;
   initAdminData();
@@ -111,88 +124,140 @@ function trackUserDownload(email, fileName) {
   adminState.userStats[email].downloads += 1;
   localStorage.setItem("fm_user_stats", JSON.stringify(adminState.userStats));
 
+  if (typeof logSharedActivity === "function") {
+    logSharedActivity({
+      email: email,
+      vault: adminState.userStats[email]?.lastPin || "Vault",
+      timestamp: now,
+      item: `Downloaded: ${fileName}`
+    });
+  }
+
   if (adminState.isAdminLoggedIn) {
     renderAdminDashboard();
   }
 }
 
-// Render Admin Dashboard
+function getParsedActivityLogs() {
+  let sheetLogs = [];
+  try {
+    const raw = localStorage.getItem("fm_shared_activity_logs");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) sheetLogs = parsed;
+    }
+  } catch(e) {}
+
+  const combined = [];
+
+  sheetLogs.forEach(entry => {
+    if (!entry) return;
+    const time = entry.Timestamp || entry.timestamp || entry.time || entry["Login Time"] || "";
+    const email = entry["Login ID (Email)"] || entry.email || entry.loginId || entry.user || "";
+    const vault = entry["Vault Name"] || entry.vault || entry.vaultName || "Vault";
+    const item = entry["Action / Downloaded Item"] || entry.item || entry.action || entry.downloadItem || "Access Vault";
+
+    if (email) {
+      combined.push({
+        timestamp: time,
+        email: String(email).trim(),
+        vault: String(vault).trim(),
+        item: String(item).trim()
+      });
+    }
+  });
+
+  if (adminState.visitorLogs && Array.isArray(adminState.visitorLogs)) {
+    adminState.visitorLogs.forEach(log => {
+      if (!log || !log.email) return;
+      combined.push({
+        timestamp: log.timestamp || new Date(log.id || Date.now()).toISOString(),
+        email: String(log.email).trim(),
+        vault: String(log.pin || "1717"),
+        item: `Login / Access Vault (${log.pin || "1717"})`
+      });
+    });
+  }
+
+  combined.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+  return combined;
+}
+
 function renderAdminDashboard() {
   initAdminData();
 
-  const users = Object.values(adminState.userStats);
-  const totalVisits = users.reduce((acc, u) => acc + (u.visits || 0), 0);
-  const totalDownloads = users.reduce((acc, u) => acc + (u.downloads || 0), 0);
-  const activePinsCount = Object.keys(adminState.pinConfig).length + 1; // +1 for Admin PIN 9999
+  const logs = getParsedActivityLogs();
+  const uniqueUsers = new Set(logs.map(l => l.email.toLowerCase())).size;
+  const totalVisits = logs.filter(l => (l.item || "").toLowerCase().includes("login") || (l.item || "").toLowerCase().includes("access")).length || logs.length;
+  const totalDownloads = logs.filter(l => (l.item || "").toLowerCase().includes("download")).length;
+  const activePinsCount = Object.keys(adminState.pinConfig).length + 1;
 
-  // Update counters
-  if (document.getElementById("statTotalUsers")) document.getElementById("statTotalUsers").textContent = users.length.toLocaleString();
+  if (document.getElementById("statTotalUsers")) document.getElementById("statTotalUsers").textContent = uniqueUsers.toLocaleString();
   if (document.getElementById("statTotalVisits")) document.getElementById("statTotalVisits").textContent = totalVisits.toLocaleString();
   if (document.getElementById("statTotalDownloads")) document.getElementById("statTotalDownloads").textContent = totalDownloads.toLocaleString();
   if (document.getElementById("statActivePins")) document.getElementById("statActivePins").textContent = activePinsCount.toLocaleString();
 
   renderVisitorsTable();
   renderPinsList();
+  renderBlockedEmails();
 }
 
-// Render Visitor Telemetry Table
 function renderVisitorsTable(filterQuery = "") {
   const tableBody = document.getElementById("adminVisitorTableBody");
   if (!tableBody) return;
 
-  let users = Object.values(adminState.userStats);
+  let logs = getParsedActivityLogs();
   const query = filterQuery.toLowerCase().trim();
 
   if (query) {
-    users = users.filter(u => u.email.toLowerCase().includes(query) || (u.lastPin && u.lastPin.includes(query)));
+    logs = logs.filter(l => l.email.toLowerCase().includes(query) || l.vault.toLowerCase().includes(query) || l.item.toLowerCase().includes(query));
   }
 
-  // Sort by last seen descending
-  users.sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen));
-
-  if (users.length === 0) {
+  if (logs.length === 0) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="5" class="py-8 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
-          No visitor login records found.
+        <td colspan="4" class="py-8 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
+          No visitor log records found in Google Sheets.
         </td>
       </tr>`;
     return;
   }
 
-  tableBody.innerHTML = users.map(u => {
-    const formattedTime = new Date(u.lastSeen).toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
+  tableBody.innerHTML = logs.map(l => {
+    let formattedTime = l.timestamp;
+    try {
+      const dt = new Date(l.timestamp);
+      if (!isNaN(dt.getTime())) {
+        formattedTime = dt.toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      }
+    } catch(e) {}
 
     return `
       <tr class="border-b border-slate-200/60 dark:border-slate-800/60 hover:bg-indigo-50/40 dark:hover:bg-slate-900/40 transition">
         <td class="py-3 px-4 text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
-          ${escapeAdminHtml(u.email)}
+          ${escapeAdminHtml(l.email)}
         </td>
         <td class="py-3 px-4 text-xs font-semibold text-slate-700 dark:text-slate-300">
-          ${formattedTime}
-        </td>
-        <td class="py-3 px-4 text-xs font-extrabold text-indigo-600 dark:text-indigo-400">
-          ${u.visits || 0} visit(s)
-        </td>
-        <td class="py-3 px-4 text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
-          ${u.downloads || 0} download(s)
+          ${escapeAdminHtml(formattedTime)}
         </td>
         <td class="py-3 px-4 text-xs">
-          <span class="px-2 py-1 rounded-md font-mono text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
-            PIN: ${escapeAdminHtml(u.lastPin || "1717")}
+          <span class="px-2.5 py-1 rounded-lg font-mono text-[11px] font-extrabold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
+            ${escapeAdminHtml(l.vault)}
           </span>
+        </td>
+        <td class="py-3 px-4 text-xs font-medium text-slate-800 dark:text-slate-200">
+          ${escapeAdminHtml(l.item)}
         </td>
       </tr>`;
   }).join("");
 }
 
-// Render Available PINs Management List
 function renderPinsList() {
   const container = document.getElementById("adminPinsList");
   if (!container) return;
@@ -241,7 +306,6 @@ function renderPinsList() {
   `).join("");
 }
 
-// Toggle Lock folder status for PIN
 function togglePinLock(pin) {
   if (pin === ADMIN_PIN) {
     if (typeof showToast === "function") showToast("Admin PIN cannot be locked.");
@@ -269,11 +333,8 @@ let activeAdminModalTab = "security";
 let adminTTFilterSem = "1";
 let adminTTFilterDay = "Monday";
 
-async function openAdminPinModal(pin) {
+function openAdminPinModal(pin) {
   currentEditPin = pin;
-  if (typeof loadSharedData === "function" && typeof sharedDataConfigured === "function" && sharedDataConfigured()) {
-    await loadSharedData(false);
-  }
   const modal = document.getElementById("adminPinEditModal");
   if (!modal) return;
 
@@ -285,6 +346,14 @@ async function openAdminPinModal(pin) {
 
   const closeBtn = document.getElementById("closeAdminPinModalBtn");
   if (closeBtn) closeBtn.onclick = closeAdminPinModal;
+
+  if (typeof loadSharedData === "function" && typeof sharedDataConfigured === "function" && sharedDataConfigured()) {
+    loadSharedData(false).then(() => {
+      if (modal && !modal.classList.contains("hidden") && currentEditPin === pin) {
+        renderAdminPinModalContent(pin);
+      }
+    });
+  }
 }
 
 function closeAdminPinModal() {
@@ -304,7 +373,6 @@ function renderAdminPinModalContent(pin) {
   const cfg = adminState.pinConfig[pin] || { isLocked: false, name: "Academics" };
   const isLocked = Boolean(cfg.isLocked);
 
-  // Sub-Navigation Tabs
   const navTabsHtml = `
     <div class="flex items-center gap-1.5 p-1.5 glass rounded-2xl border border-slate-200 dark:border-slate-800 mb-5">
       <button type="button" onclick="switchAdminModalTab('security', '${pin}')" class="flex-1 py-2 text-xs font-extrabold rounded-xl transition ${activeAdminModalTab === 'security' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}">
@@ -344,7 +412,6 @@ function renderAdminPinModalContent(pin) {
     });
 
     tabBodyHtml = `
-      <!-- Add Exam Form -->
       <div class="p-4 rounded-3xl glass border border-slate-200 dark:border-slate-800 space-y-3 mb-5">
         <h4 class="text-sm font-extrabold text-slate-900 dark:text-slate-100">+ Add New Exam Date Entry</h4>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -373,7 +440,6 @@ function renderAdminPinModalContent(pin) {
         </button>
       </div>
 
-      <!-- Existing Exam Dates List -->
       <div class="space-y-3">
         <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Existing Exam Dates (${exams.length})</h4>
         ${exams.length === 0 ? `
@@ -404,13 +470,15 @@ function renderAdminPinModalContent(pin) {
     `;
   } else if (activeAdminModalTab === "timetable") {
     const tt = (typeof getStoredTimetable === "function") ? getStoredTimetable() : {};
-    const dayPeriods = (tt[adminTTFilterSem] && tt[adminTTFilterSem][adminTTFilterDay]) ? tt[adminTTFilterSem][adminTTFilterDay] : [];
+    const dayPeriods = (tt[adminTTFilterSem] && tt[adminTTFilterSem][adminTTFilterDay]) ? [...tt[adminTTFilterSem][adminTTFilterDay]] : [];
+    if (typeof parseTimeStringToMinutes === "function") {
+      dayPeriods.sort((a, b) => parseTimeStringToMinutes(a.time) - parseTimeStringToMinutes(b.time));
+    }
 
     const sems = ["1", "2", "3", "4", "5", "6", "7", "8"];
     const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
     tabBodyHtml = `
-      <!-- Add Period Form -->
       <div class="p-4 rounded-3xl glass border border-slate-200 dark:border-slate-800 space-y-3 mb-5">
         <h4 class="text-sm font-extrabold text-slate-900 dark:text-slate-100">+ Add Class Period Slot</h4>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -430,7 +498,6 @@ function renderAdminPinModalContent(pin) {
         </button>
       </div>
 
-      <!-- Existing Class Periods List -->
       <div class="space-y-3">
         <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Semester ${adminTTFilterSem} (${adminTTFilterDay}) Periods (${dayPeriods.length})</h4>
         ${dayPeriods.length === 0 ? `
@@ -461,7 +528,7 @@ function renderAdminPinModalContent(pin) {
   content.innerHTML = navTabsHtml + tabBodyHtml;
 }
 
-async function adminModalAddExam(pin) {
+function adminModalAddExam(pin) {
   const title = document.getElementById("adminExamTitle")?.value;
   const sem = document.getElementById("adminExamSem")?.value || "1";
   const rawDate = document.getElementById("adminExamDateText")?.value || document.getElementById("adminExamDatePicker")?.value || "21/08/2026";
@@ -487,25 +554,23 @@ async function adminModalAddExam(pin) {
   });
 
   if (typeof saveStoredExams === "function") saveStoredExams(exams);
-  if (typeof saveSharedExams === "function") await saveSharedExams(exams);
   if (typeof showToast === "function") showToast("Added exam date globally!");
   renderAdminPinModalContent(pin);
 
   if (typeof renderExamsView === "function") renderExamsView(sem, true);
 }
 
-async function adminModalDeleteExam(id, pin) {
+function adminModalDeleteExam(id, pin) {
   let exams = (typeof getStoredExams === "function") ? getStoredExams() : [];
   exams = exams.filter(e => String(e.id) !== String(id));
   if (typeof saveStoredExams === "function") saveStoredExams(exams);
-  if (typeof saveSharedExams === "function") await saveSharedExams(exams);
   if (typeof showToast === "function") showToast("Deleted exam entry globally.");
   renderAdminPinModalContent(pin);
 
   if (typeof renderExamsView === "function") renderExamsView(activeExamsSem, true);
 }
 
-async function adminModalAddTTSlot(pin) {
+function adminModalAddTTSlot(pin) {
   const sem = document.getElementById("adminTTSem")?.value || adminTTFilterSem;
   const day = document.getElementById("adminTTDay")?.value || adminTTFilterDay;
   const subject = document.getElementById("adminTTSubject")?.value;
@@ -531,19 +596,17 @@ async function adminModalAddTTSlot(pin) {
   });
 
   if (typeof saveStoredTimetable === "function") saveStoredTimetable(tt);
-  if (typeof saveSharedTimetable === "function") await saveSharedTimetable(tt);
   if (typeof showToast === "function") showToast(`Added class period globally for Sem ${sem} (${day})!`);
   renderAdminPinModalContent(pin);
 
   if (typeof renderTimetableView === "function") renderTimetableView(sem, day, true);
 }
 
-async function adminModalDeleteTTSlot(id, pin) {
+function adminModalDeleteTTSlot(id, pin) {
   const tt = (typeof getStoredTimetable === "function") ? getStoredTimetable() : {};
   if (tt[adminTTFilterSem] && tt[adminTTFilterSem][adminTTFilterDay]) {
     tt[adminTTFilterSem][adminTTFilterDay] = tt[adminTTFilterSem][adminTTFilterDay].filter(p => String(p.id) !== String(id));
     if (typeof saveStoredTimetable === "function") saveStoredTimetable(tt);
-    if (typeof saveSharedTimetable === "function") await saveSharedTimetable(tt);
     if (typeof showToast === "function") showToast("Deleted timetable slot globally.");
     renderAdminPinModalContent(pin);
 
@@ -551,7 +614,6 @@ async function adminModalDeleteTTSlot(id, pin) {
   }
 }
 
-// Global Window bindings for inline onclick listeners
 window.adminModalDeleteExam = adminModalDeleteExam;
 window.adminModalDeleteTTSlot = adminModalDeleteTTSlot;
 window.adminModalAddExam = adminModalAddExam;
@@ -561,7 +623,6 @@ window.closeAdminPinModal = closeAdminPinModal;
 window.switchAdminModalTab = switchAdminModalTab;
 window.togglePinLock = togglePinLock;
 
-// Add new custom PIN mapping
 function addPinMapping(pin, name, driveFolderId) {
   if (!pin || pin.length !== 4 || isNaN(pin)) {
     if (typeof showToast === "function") showToast("PIN must be a 4-digit number.");
@@ -583,7 +644,6 @@ function addPinMapping(pin, name, driveFolderId) {
   return true;
 }
 
-// Remove PIN mapping
 function removePinMapping(pin) {
   if (pin === "1717" || pin === ADMIN_PIN) {
     if (typeof showToast === "function") showToast("Default PINs cannot be removed.");
@@ -595,7 +655,6 @@ function removePinMapping(pin) {
   renderAdminDashboard();
 }
 
-// Export Telemetry Log
 function exportVisitorLogs() {
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(adminState.userStats, null, 2));
   const downloadAnchor = document.createElement('a');
@@ -607,7 +666,6 @@ function exportVisitorLogs() {
   if (typeof showToast === "function") showToast("Exported visitor analytics log.");
 }
 
-// Clear Telemetry Data
 function clearVisitorLogs() {
   if (confirm("Are you sure you want to clear all visitor telemetry data?")) {
     adminState.visitorLogs = [];
@@ -618,6 +676,87 @@ function clearVisitorLogs() {
     renderAdminDashboard();
   }
 }
+
+function renderBlockedEmails() {
+  const container = document.getElementById("adminBlockedEmailsContainer");
+  if (!container) return;
+
+  const savedBlocked = localStorage.getItem("fm_blocked_emails");
+  if (savedBlocked) {
+    try {
+      const parsed = JSON.parse(savedBlocked);
+      if (Array.isArray(parsed)) adminState.blockedEmails = parsed;
+    } catch (err) {}
+  }
+  if (!Array.isArray(adminState.blockedEmails)) adminState.blockedEmails = [];
+
+  if (adminState.blockedEmails.length === 0) {
+    container.innerHTML = `
+      <p class="py-3 text-center text-xs font-bold text-slate-400 dark:text-slate-500">
+        No blocked email accounts.
+      </p>`;
+    return;
+  }
+
+  container.innerHTML = adminState.blockedEmails.map(email => `
+    <div class="flex items-center justify-between p-2.5 rounded-xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/60">
+      <div class="flex items-center gap-2 truncate">
+        <span class="text-xs">🚫</span>
+        <span class="text-xs font-bold text-rose-900 dark:text-rose-200 truncate">${escapeAdminHtml(email)}</span>
+      </div>
+      <button type="button" onclick="removeBlockedEmail('${escapeAdminHtml(email)}')" class="px-2.5 py-1 text-[11px] font-black text-rose-600 hover:bg-rose-200 dark:text-rose-300 dark:hover:bg-rose-900 rounded-lg transition">
+        Unblock 🗑️
+      </button>
+    </div>
+  `).join("");
+}
+
+function addBlockedEmail(emailStr) {
+  if (!emailStr) return;
+  const email = String(emailStr).trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    if (typeof showToast === "function") showToast("Please enter a valid Gmail address.");
+    return;
+  }
+  if (!adminState.blockedEmails.includes(email)) {
+    adminState.blockedEmails.push(email);
+    localStorage.setItem("fm_blocked_emails", JSON.stringify(adminState.blockedEmails));
+    renderBlockedEmails();
+    if (typeof saveSharedBlockedList === "function") {
+      saveSharedBlockedList(adminState.blockedEmails);
+    }
+    if (typeof showToast === "function") showToast(`Blocked ${email} globally.`);
+  } else {
+    if (typeof showToast === "function") showToast(`${email} is already blocked.`);
+  }
+}
+
+function removeBlockedEmail(emailStr) {
+  const email = String(emailStr).trim().toLowerCase();
+  adminState.blockedEmails = adminState.blockedEmails.filter(e => e.toLowerCase() !== email);
+  localStorage.setItem("fm_blocked_emails", JSON.stringify(adminState.blockedEmails));
+  renderBlockedEmails();
+  if (typeof saveSharedBlockedList === "function") {
+    saveSharedBlockedList(adminState.blockedEmails);
+  }
+  if (typeof showToast === "function") showToast(`Unblocked ${email}.`);
+}
+
+window.addBlockedEmail = addBlockedEmail;
+window.removeBlockedEmail = removeBlockedEmail;
+window.renderBlockedEmails = renderBlockedEmails;
+
+document.addEventListener("DOMContentLoaded", () => {
+  if (document.getElementById("addBlockEmailBtn")) {
+    document.getElementById("addBlockEmailBtn").onclick = () => {
+      const inp = document.getElementById("blockEmailInput");
+      if (inp) {
+        addBlockedEmail(inp.value);
+        inp.value = "";
+      }
+    };
+  }
+});
 
 function escapeAdminHtml(str) {
   if (!str) return "";
