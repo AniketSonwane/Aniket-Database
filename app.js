@@ -741,27 +741,91 @@ function closeFilePreviewModal() {
 window.previewItem = previewItem;
 window.closeFilePreviewModal = closeFilePreviewModal;
 
-function downloadItem(item) {
-  const url = item.webContentLink || getBrowserDownloadUrl(item);
-  if (typeof trackUserDownload === "function") {
-    trackUserDownload(state.userEmail, item.name);
+function getDownloadFilename(item) {
+  let filename = item?.name || "file";
+  const m = item?.mimeType || "";
+  if (m === "application/vnd.google-apps.document" && !filename.toLowerCase().endsWith(".pdf")) {
+    filename += ".pdf";
+  } else if (m === "application/vnd.google-apps.spreadsheet" && !filename.toLowerCase().endsWith(".xlsx")) {
+    filename += ".xlsx";
+  } else if (m === "application/vnd.google-apps.presentation" && !filename.toLowerCase().endsWith(".pptx")) {
+    filename += ".pptx";
   }
-  showToast(`Downloading "${item.name}"...`);
-  window.open(url, "_blank", "noopener");
+  return filename;
 }
 
-function getBrowserDownloadUrl(item) {
-  if (item.mimeType === "application/vnd.google-apps.document") {
-    return `https://www.googleapis.com/drive/v3/files/${item.id}/export?mimeType=application/pdf&key=${encodeURIComponent(CONFIG.apiKey)}`;
+function getDirectDownloadUrl(item) {
+  const fileId = encodeURIComponent(item.id);
+  const key = encodeURIComponent(CONFIG.apiKey);
+  const m = item?.mimeType || "";
+
+  if (m === "application/vnd.google-apps.document") {
+    return `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application/pdf&key=${key}`;
   }
-  if (item.mimeType === "application/vnd.google-apps.spreadsheet") {
-    return `https://www.googleapis.com/drive/v3/files/${item.id}/export?mimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet&key=${encodeURIComponent(CONFIG.apiKey)}`;
+  if (m === "application/vnd.google-apps.spreadsheet") {
+    return `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet&key=${key}`;
   }
-  if (item.mimeType === "application/vnd.google-apps.presentation") {
-    return `https://www.googleapis.com/drive/v3/files/${item.id}/export?mimeType=application/vnd.openxmlformats-officedocument.presentationml.presentation&key=${encodeURIComponent(CONFIG.apiKey)}`;
+  if (m === "application/vnd.google-apps.presentation") {
+    return `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application/vnd.openxmlformats-officedocument.presentationml.presentation&key=${key}`;
   }
-  return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(item.id)}`;
+  return `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${key}`;
 }
+
+async function downloadItem(item) {
+  if (!item || !item.id) return;
+
+  const filename = getDownloadFilename(item);
+
+  if (typeof trackUserDownload === "function") {
+    trackUserDownload(state.userEmail, item.name || filename);
+  }
+
+  showToast(`Starting download: "${filename}"...`);
+  const downloadUrl = getDirectDownloadUrl(item);
+
+  try {
+    const response = await fetch(downloadUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(() => {
+      if (document.body.contains(a)) {
+        document.body.removeChild(a);
+      }
+      URL.revokeObjectURL(blobUrl);
+    }, 150);
+
+    showToast(`Downloaded "${filename}" successfully!`);
+  } catch (err) {
+    console.warn("Direct fetch download failed, falling back to iframe trigger:", err);
+    triggerDirectDownloadFallback(downloadUrl, filename, item);
+  }
+}
+
+function triggerDirectDownloadFallback(downloadUrl, filename, item) {
+  let iframe = document.getElementById("hiddenDownloadIframe");
+  if (!iframe) {
+    iframe = document.createElement("iframe");
+    iframe.id = "hiddenDownloadIframe";
+    iframe.style.display = "none";
+    document.body.appendChild(iframe);
+  }
+  const fallbackUrl = downloadUrl || `https://drive.google.com/uc?export=download&confirm=t&id=${encodeURIComponent(item.id)}`;
+  iframe.src = fallbackUrl;
+  showToast(`Downloading "${filename}"...`);
+}
+
+window.downloadItem = downloadItem;
 
 function getFileIcon(name, mime) {
   const ext = name.split(".").pop().toLowerCase();
