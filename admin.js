@@ -269,8 +269,11 @@ let activeAdminModalTab = "security";
 let adminTTFilterSem = "1";
 let adminTTFilterDay = "Monday";
 
-function openAdminPinModal(pin) {
+async function openAdminPinModal(pin) {
   currentEditPin = pin;
+  if (typeof loadSharedData === "function" && typeof sharedDataConfigured === "function" && sharedDataConfigured()) {
+    await loadSharedData(false);
+  }
   const modal = document.getElementById("adminPinEditModal");
   if (!modal) return;
 
@@ -333,12 +336,7 @@ function renderAdminPinModalContent(pin) {
       </div>
     `;
   } else if (activeAdminModalTab === "exams") {
-    const rawExams = localStorage.getItem("fm_exam_dates");
-    const DEFAULT_EXAMS = [
-      { id: "e1", sem: "1", title: "Mid-Semester Mathematics Exam", date: "15/09/2026", time: "10:00 AM - 12:00 PM", room: "Hall A-101", subject: "MATH101" },
-      { id: "e2", sem: "1", title: "Physics Lab Viva & Practical", date: "18/09/2026", time: "02:00 PM - 04:00 PM", room: "Physics Lab 2", subject: "PHY102" }
-    ];
-    const exams = rawExams ? JSON.parse(rawExams) : DEFAULT_EXAMS;
+    const exams = (typeof getStoredExams === "function") ? getStoredExams() : [];
     exams.sort((a, b) => {
       const dA = (typeof parseDateObj === "function") ? parseDateObj(a.date).getTime() : 0;
       const dB = (typeof parseDateObj === "function") ? parseDateObj(b.date).getTime() : 0;
@@ -405,16 +403,7 @@ function renderAdminPinModalContent(pin) {
       </div>
     `;
   } else if (activeAdminModalTab === "timetable") {
-    const rawTT = localStorage.getItem("fm_timetables");
-    const DEFAULT_TIMETABLE = {
-      "1": {
-        "Monday": [
-          { id: "t1", time: "09:00 AM - 10:00 AM", subject: "Mathematics-1 (M-1)", room: "LH-101", faculty: "Dr. A. Sharma" },
-          { id: "t2", time: "10:00 AM - 11:00 AM", subject: "Physics-1", room: "LH-102", faculty: "Prof. R. Verma" }
-        ]
-      }
-    };
-    const tt = rawTT ? JSON.parse(rawTT) : DEFAULT_TIMETABLE;
+    const tt = (typeof getStoredTimetable === "function") ? getStoredTimetable() : {};
     const dayPeriods = (tt[adminTTFilterSem] && tt[adminTTFilterSem][adminTTFilterDay]) ? tt[adminTTFilterSem][adminTTFilterDay] : [];
 
     const sems = ["1", "2", "3", "4", "5", "6", "7", "8"];
@@ -472,7 +461,7 @@ function renderAdminPinModalContent(pin) {
   content.innerHTML = navTabsHtml + tabBodyHtml;
 }
 
-function adminModalAddExam(pin) {
+async function adminModalAddExam(pin) {
   const title = document.getElementById("adminExamTitle")?.value;
   const sem = document.getElementById("adminExamSem")?.value || "1";
   const rawDate = document.getElementById("adminExamDateText")?.value || document.getElementById("adminExamDatePicker")?.value || "21/08/2026";
@@ -486,11 +475,7 @@ function adminModalAddExam(pin) {
     return;
   }
 
-  const raw = localStorage.getItem("fm_exam_dates");
-  const DEFAULT_EXAMS = [
-    { id: "e1", sem: "1", title: "Mid-Semester Mathematics Exam", date: "15/09/2026", time: "10:00 AM - 12:00 PM", room: "Hall A-101", subject: "MATH101" }
-  ];
-  const exams = raw ? JSON.parse(raw) : DEFAULT_EXAMS;
+  const exams = (typeof getStoredExams === "function") ? getStoredExams() : [];
   exams.push({
     id: "e_" + Date.now(),
     sem: String(sem),
@@ -501,31 +486,26 @@ function adminModalAddExam(pin) {
     subject: subject.trim()
   });
 
-  localStorage.setItem("fm_exam_dates", JSON.stringify(exams));
-  if (typeof showToast === "function") showToast("Added exam date!");
+  if (typeof saveStoredExams === "function") saveStoredExams(exams);
+  if (typeof saveSharedExams === "function") await saveSharedExams(exams);
+  if (typeof showToast === "function") showToast("Added exam date globally!");
   renderAdminPinModalContent(pin);
 
-  if (typeof renderExamsView === "function") renderExamsView(sem);
+  if (typeof renderExamsView === "function") renderExamsView(sem, true);
 }
 
-function adminModalDeleteExam(id, pin) {
-  const DEFAULT_EXAMS = [
-    { id: "e1", sem: "1", title: "Mid-Semester Mathematics Exam", date: "2026-09-15", time: "10:00 AM - 12:00 PM", room: "Hall A-101", subject: "MATH101" },
-    { id: "e2", sem: "1", title: "Physics Lab Viva & Practical", date: "2026-09-18", time: "02:00 PM - 04:00 PM", room: "Physics Lab 2", subject: "PHY102" },
-    { id: "e3", sem: "2", title: "End-Sem Data Structures Exam", date: "2026-10-05", time: "09:30 AM - 12:30 PM", room: "Auditorium", subject: "CS201" },
-    { id: "e4", sem: "3", title: "Operating Systems Theory Exam", date: "2026-10-12", time: "01:30 PM - 04:30 PM", room: "Hall B-204", subject: "CS301" }
-  ];
-  const raw = localStorage.getItem("fm_exam_dates");
-  let exams = raw ? JSON.parse(raw) : DEFAULT_EXAMS;
+async function adminModalDeleteExam(id, pin) {
+  let exams = (typeof getStoredExams === "function") ? getStoredExams() : [];
   exams = exams.filter(e => String(e.id) !== String(id));
-  localStorage.setItem("fm_exam_dates", JSON.stringify(exams));
-  if (typeof showToast === "function") showToast("Deleted exam entry.");
+  if (typeof saveStoredExams === "function") saveStoredExams(exams);
+  if (typeof saveSharedExams === "function") await saveSharedExams(exams);
+  if (typeof showToast === "function") showToast("Deleted exam entry globally.");
   renderAdminPinModalContent(pin);
 
-  if (typeof renderExamsView === "function") renderExamsView();
+  if (typeof renderExamsView === "function") renderExamsView(activeExamsSem, true);
 }
 
-function adminModalAddTTSlot(pin) {
+async function adminModalAddTTSlot(pin) {
   const sem = document.getElementById("adminTTSem")?.value || adminTTFilterSem;
   const day = document.getElementById("adminTTDay")?.value || adminTTFilterDay;
   const subject = document.getElementById("adminTTSubject")?.value;
@@ -538,8 +518,7 @@ function adminModalAddTTSlot(pin) {
     return;
   }
 
-  const raw = localStorage.getItem("fm_timetables");
-  const tt = raw ? JSON.parse(raw) : {};
+  const tt = (typeof getStoredTimetable === "function") ? getStoredTimetable() : {};
   if (!tt[sem]) tt[sem] = {};
   if (!tt[sem][day]) tt[sem][day] = [];
 
@@ -551,31 +530,24 @@ function adminModalAddTTSlot(pin) {
     faculty: faculty.trim()
   });
 
-  localStorage.setItem("fm_timetables", JSON.stringify(tt));
-  if (typeof showToast === "function") showToast(`Added class period for Sem ${sem} (${day})!`);
+  if (typeof saveStoredTimetable === "function") saveStoredTimetable(tt);
+  if (typeof saveSharedTimetable === "function") await saveSharedTimetable(tt);
+  if (typeof showToast === "function") showToast(`Added class period globally for Sem ${sem} (${day})!`);
   renderAdminPinModalContent(pin);
 
-  if (typeof renderTimetableView === "function") renderTimetableView(sem, day);
+  if (typeof renderTimetableView === "function") renderTimetableView(sem, day, true);
 }
 
-function adminModalDeleteTTSlot(id, pin) {
-  const DEFAULT_TIMETABLE = {
-    "1": {
-      "Monday": [
-        { id: "t1", time: "09:00 AM - 10:00 AM", subject: "Mathematics-1 (M-1)", room: "LH-101", faculty: "Dr. A. Sharma" },
-        { id: "t2", time: "10:00 AM - 11:00 AM", subject: "Physics-1", room: "LH-102", faculty: "Prof. R. Verma" }
-      ]
-    }
-  };
-  const raw = localStorage.getItem("fm_timetables");
-  const tt = raw ? JSON.parse(raw) : DEFAULT_TIMETABLE;
+async function adminModalDeleteTTSlot(id, pin) {
+  const tt = (typeof getStoredTimetable === "function") ? getStoredTimetable() : {};
   if (tt[adminTTFilterSem] && tt[adminTTFilterSem][adminTTFilterDay]) {
     tt[adminTTFilterSem][adminTTFilterDay] = tt[adminTTFilterSem][adminTTFilterDay].filter(p => String(p.id) !== String(id));
-    localStorage.setItem("fm_timetables", JSON.stringify(tt));
-    if (typeof showToast === "function") showToast("Deleted timetable slot.");
+    if (typeof saveStoredTimetable === "function") saveStoredTimetable(tt);
+    if (typeof saveSharedTimetable === "function") await saveSharedTimetable(tt);
+    if (typeof showToast === "function") showToast("Deleted timetable slot globally.");
     renderAdminPinModalContent(pin);
 
-    if (typeof renderTimetableView === "function") renderTimetableView(adminTTFilterSem, adminTTFilterDay);
+    if (typeof renderTimetableView === "function") renderTimetableView(adminTTFilterSem, adminTTFilterDay, true);
   }
 }
 

@@ -787,14 +787,19 @@ function getStoredExams() {
   }
 }
 
-function saveStoredExams(exams) {
+async function saveStoredExams(exams) {
   localStorage.setItem("fm_exam_dates", JSON.stringify(exams));
+  if (typeof saveSharedExams === "function") return await saveSharedExams(exams);
+  return false;
 }
 
 let activeExamsSem = "all";
 
-function renderExamsView(semFilter = activeExamsSem) {
+function renderExamsView(semFilter = activeExamsSem, skipSync = false) {
   activeExamsSem = semFilter;
+  if (!skipSync && typeof refreshSharedExams === "function" && sharedDataConfigured()) {
+    refreshSharedExams();
+  }
   if ($("searchInput")) $("searchInput").value = "";
   if ($("folderTitle")) $("folderTitle").textContent = "Exam Dates";
 
@@ -880,7 +885,7 @@ function wireExamEvents() {
   }
 }
 
-function promptAddExam() {
+async function promptAddExam() {
   const title = prompt("Enter Exam Title (e.g. End-Sem Physics Exam):");
   if (!title) return;
   const sem = prompt("Enter Semester Number (1-8):", activeExamsSem === "all" ? "1" : activeExamsSem);
@@ -902,17 +907,17 @@ function promptAddExam() {
     subject: subject ? subject.trim() : "Subject"
   });
 
-  saveStoredExams(exams);
+  await saveStoredExams(exams);
   showToast("Added new exam date entry!");
-  renderExamsView(sem.trim());
+  renderExamsView(sem.trim(), true);
 }
 
-function deleteExamDate(id) {
+async function deleteExamDate(id) {
   let exams = getStoredExams();
   exams = exams.filter(e => String(e.id) !== String(id));
-  saveStoredExams(exams);
+  await saveStoredExams(exams);
   showToast("Deleted exam entry.");
-  renderExamsView(activeExamsSem);
+  renderExamsView(activeExamsSem, true);
 }
 window.deleteExamDate = deleteExamDate;
 
@@ -951,14 +956,19 @@ function getStoredTimetable() {
   }
 }
 
-function saveStoredTimetable(tt) {
+async function saveStoredTimetable(tt) {
   localStorage.setItem("fm_timetables", JSON.stringify(tt));
+  if (typeof saveSharedTimetable === "function") return await saveSharedTimetable(tt);
+  return false;
 }
 
 let activeTTState = { sem: "1", day: "Monday" };
 
-function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day) {
+function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day, skipSync = false) {
   activeTTState.sem = String(sem);
+  if (!skipSync && typeof refreshSharedTimetable === "function" && sharedDataConfigured()) {
+    refreshSharedTimetable();
+  }
   activeTTState.day = day;
 
   if ($("searchInput")) $("searchInput").value = "";
@@ -1056,7 +1066,7 @@ function wireTTEvents() {
   }
 }
 
-function promptAddTTSlot() {
+async function promptAddTTSlot() {
   const subject = prompt("Enter Subject / Class Name (e.g. Mathematics-1):");
   if (!subject) return;
   const time = prompt("Enter Time Slot (e.g. 09:00 AM - 10:00 AM):", "09:00 AM - 10:00 AM");
@@ -1076,18 +1086,18 @@ function promptAddTTSlot() {
     faculty: faculty ? faculty.trim() : "Staff"
   });
 
-  saveStoredTimetable(tt);
+  await saveStoredTimetable(tt);
   showToast(`Added class period for Sem ${activeTTState.sem} (${activeTTState.day})!`);
-  renderTimetableView(activeTTState.sem, activeTTState.day);
+  renderTimetableView(activeTTState.sem, activeTTState.day, true);
 }
 
-function deleteTTSlot(id) {
+async function deleteTTSlot(id) {
   const tt = getStoredTimetable();
   if (tt[activeTTState.sem] && tt[activeTTState.sem][activeTTState.day]) {
     tt[activeTTState.sem][activeTTState.day] = tt[activeTTState.sem][activeTTState.day].filter(p => String(p.id) !== String(id));
-    saveStoredTimetable(tt);
+    await saveStoredTimetable(tt);
     showToast("Deleted class slot.");
-    renderTimetableView(activeTTState.sem, activeTTState.day);
+    renderTimetableView(activeTTState.sem, activeTTState.day, true);
   }
 }
 window.deleteTTSlot = deleteTTSlot;
