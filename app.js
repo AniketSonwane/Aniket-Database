@@ -338,6 +338,7 @@ function exitVault() {
   $("headerAction").innerHTML = `<span class="status-badge">🔐 Sealed Vault</span>`;
   closeSettingsModal();
   closeContactModal();
+  if (typeof closeFilePreviewModal === "function") closeFilePreviewModal();
   resetPin();
   updateGoogleLoginUI();
 }
@@ -356,6 +357,7 @@ function logout() {
   $("headerAction").innerHTML = `<span class="status-badge">🔐 Sealed Vault</span>`;
   closeSettingsModal();
   closeContactModal();
+  if (typeof closeFilePreviewModal === "function") closeFilePreviewModal();
   resetPin();
 }
 
@@ -677,10 +679,67 @@ https://*.github.io/*</code>
   });
 }
 
+let currentPreviewItem = null;
+
 function previewItem(item) {
-  const url = item.webViewLink || `https://drive.google.com/file/d/${encodeURIComponent(item.id)}/view`;
-  window.open(url, "_blank", "noopener");
+  if (!item) return;
+  currentPreviewItem = item;
+
+  const modal = $("filePreviewModal");
+  const fileName = $("previewFileName");
+  const fileMeta = $("previewFileMeta");
+  const fileIcon = $("previewFileIcon");
+  const iframe = $("previewIframe");
+  const loading = $("previewLoading");
+  const openDriveBtn = $("previewOpenDriveBtn");
+  const downloadBtn = $("previewDownloadBtn");
+
+  if (!modal || !iframe) return;
+
+  if (fileName) fileName.textContent = item.name || "File Preview";
+  if (fileMeta) {
+    const sizeStr = item.size ? formatBytes(Number(item.size)) : "";
+    fileMeta.textContent = `${fileType(item)}${sizeStr ? " • " + sizeStr : ""}`;
+  }
+  if (fileIcon) {
+    fileIcon.textContent = getFileIcon(item.name || "", item.mimeType || "");
+  }
+
+  if (openDriveBtn) {
+    const driveUrl = item.webViewLink || `https://drive.google.com/file/d/${encodeURIComponent(item.id)}/view`;
+    openDriveBtn.onclick = () => window.open(driveUrl, "_blank", "noopener");
+  }
+
+  if (downloadBtn) {
+    downloadBtn.onclick = () => downloadItem(item);
+  }
+
+  if (loading) {
+    loading.classList.remove("hidden");
+    loading.classList.remove("opacity-0");
+  }
+
+  const previewUrl = `https://drive.google.com/file/d/${encodeURIComponent(item.id)}/preview`;
+  iframe.onload = () => {
+    if (loading) {
+      loading.classList.add("opacity-0");
+      setTimeout(() => loading.classList.add("hidden"), 300);
+    }
+  };
+  iframe.src = previewUrl;
+
+  modal.classList.remove("hidden");
 }
+
+function closeFilePreviewModal() {
+  const modal = $("filePreviewModal");
+  const iframe = $("previewIframe");
+  if (modal) modal.classList.add("hidden");
+  if (iframe) iframe.src = "about:blank";
+  currentPreviewItem = null;
+}
+window.previewItem = previewItem;
+window.closeFilePreviewModal = closeFilePreviewModal;
 
 function downloadItem(item) {
   const url = item.webContentLink || getBrowserDownloadUrl(item);
@@ -1537,6 +1596,11 @@ $("pinScreen").querySelector("[data-action='backspace']").onclick = () => {
 $("pinScreen").querySelector("[data-action='submit']").onclick = submitPin;
 
 document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && $("filePreviewModal") && !$("filePreviewModal").classList.contains("hidden")) {
+    closeFilePreviewModal();
+    return;
+  }
+
   const activeEl = document.activeElement;
   const isInputActive = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
 
@@ -1750,6 +1814,23 @@ document.addEventListener("DOMContentLoaded", () => {
         if ($("newPinNameInput")) $("newPinNameInput").value = "";
         if ($("newPinFolderIdInput")) $("newPinFolderIdInput").value = "";
       }
+    };
+  }
+
+  const scrollTopBtn = $("scrollTopBtn");
+  if (scrollTopBtn) {
+    window.addEventListener("scroll", () => {
+      if (window.scrollY > 220) {
+        scrollTopBtn.classList.remove("opacity-0", "pointer-events-none", "scale-90");
+        scrollTopBtn.classList.add("opacity-100", "pointer-events-auto", "scale-100");
+      } else {
+        scrollTopBtn.classList.remove("opacity-100", "pointer-events-auto", "scale-100");
+        scrollTopBtn.classList.add("opacity-0", "pointer-events-none", "scale-90");
+      }
+    });
+
+    scrollTopBtn.onclick = () => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     };
   }
 });
