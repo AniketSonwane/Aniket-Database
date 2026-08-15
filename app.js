@@ -20,6 +20,14 @@ const DEFAULT_CONFIG = {
     "1717": {
       id: _secDec(_SEC_STORE.r),
       name: "Academics"
+    },
+    "1919": {
+      id: "ATTENDANCE_VAULT",
+      name: "Student Attendance Vault"
+    },
+    "2024": {
+      id: "ATTENDANCE_VAULT",
+      name: "Student Attendance Vault"
     }
   }
 };
@@ -250,7 +258,10 @@ function submitPin() {
   }
 
   const pinConfig = (typeof adminState !== "undefined" && adminState.pinConfig) ? adminState.pinConfig : CONFIG.pinFolders;
-  const targetFolder = pinConfig[entry] || CONFIG.pinFolders[entry];
+  let targetFolder = pinConfig[entry] || CONFIG.pinFolders[entry];
+  if (entry === "1919" || entry === "2024") {
+    targetFolder = { id: "ATTENDANCE_VAULT", name: "Student Attendance Vault" };
+  }
 
   if (state.pin.length !== 4 || !targetFolder) {
     $("pinMessage").textContent = "Incorrect PIN. Please try again.";
@@ -305,6 +316,22 @@ async function openManager(pin, targetFolder) {
     return;
   }
 
+  if (pin === "1919" || pin === "2024" || state.root.id === "ATTENDANCE_VAULT") {
+    $("pinScreen").classList.add("hidden");
+    $("adminScreen").classList.add("hidden");
+    $("managerScreen").classList.remove("hidden");
+
+    $("headerAction").innerHTML = `
+      <div class="flex items-center gap-2">
+        <button id="exitVaultBtn" class="logout-btn font-extrabold bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 border border-amber-400/30 transition">Exit Vault 🚪</button>
+      </div>`;
+    if ($("exitVaultBtn")) $("exitVaultBtn").onclick = exitVault;
+
+    renderAttendanceVaultView();
+    resetPin();
+    return;
+  }
+
   if ($("searchInput")) $("searchInput").value = "";
   state.currentFolder = state.root;
   state.breadcrumb = [{ id: state.root.id, name: state.root.name, root: true }];
@@ -313,6 +340,8 @@ async function openManager(pin, targetFolder) {
   $("pinScreen").classList.add("hidden");
   $("adminScreen").classList.add("hidden");
   $("managerScreen").classList.remove("hidden");
+  if ($("topNavCards")) $("topNavCards").classList.remove("hidden");
+  if ($("searchBarContainer")) $("searchBarContainer").classList.remove("hidden");
 
   $("headerAction").innerHTML = `
     <div class="flex items-center gap-2">
@@ -339,6 +368,8 @@ function exitVault() {
   closeSettingsModal();
   closeContactModal();
   if (typeof closeFilePreviewModal === "function") closeFilePreviewModal();
+  if ($("topNavCards")) $("topNavCards").classList.remove("hidden");
+  if ($("searchBarContainer")) $("searchBarContainer").classList.remove("hidden");
   resetPin();
   updateGoogleLoginUI();
 }
@@ -373,6 +404,12 @@ function renderHeader() {
 function renderBreadcrumb() {
   const box = $("breadcrumb");
   if (!box) return;
+  if (state.activeNav === "attendance") {
+    box.classList.add("hidden");
+    box.innerHTML = "";
+    return;
+  }
+  box.classList.remove("hidden");
   box.innerHTML = state.breadcrumb.map((b, i) => {
     const isLast = i === state.breadcrumb.length - 1;
     return `${i ? `<span class="text-slate-500 light:text-slate-400">/</span>` : ""}${isLast
@@ -728,13 +765,21 @@ function previewItem(item) {
   };
   iframe.src = previewUrl;
 
+  if (modal && modal.parentNode !== document.body) {
+    document.body.appendChild(modal);
+  }
   modal.classList.remove("hidden");
+  modal.removeAttribute("hidden");
+  modal.setAttribute("style", "display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); justify-content: center; align-items: center; pointer-events: auto !important;");
 }
 
 function closeFilePreviewModal() {
   const modal = $("filePreviewModal");
   const iframe = $("previewIframe");
-  if (modal) modal.classList.add("hidden");
+  if (modal) {
+    modal.classList.add("hidden");
+    modal.setAttribute("style", "display: none !important;");
+  }
   if (iframe) iframe.src = "about:blank";
   currentPreviewItem = null;
 }
@@ -870,6 +915,7 @@ function escapeAttr(value) {
 
 function setActiveNavCard(navName) {
   state.activeNav = navName;
+  if ($("topNavCards")) $("topNavCards").classList.remove("hidden");
   document.querySelectorAll("[data-nav]").forEach(btn => {
     const isActive = btn.dataset.nav === navName;
     btn.classList.toggle("nav-active", isActive);
@@ -1079,6 +1125,79 @@ function parseTimeStringToMinutes(timeStr) {
   return hours * 60 + minutes;
 }
 
+function getCurrentIndianDay() {
+  try {
+    const options = { timeZone: "Asia/Kolkata", weekday: "long" };
+    const indianDayStr = new Intl.DateTimeFormat("en-US", options).format(new Date());
+    const validDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const matched = validDays.find(d => d.toLowerCase() === indianDayStr.toLowerCase());
+    if (matched) return matched;
+  } catch(e) {}
+
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const istTime = new Date(utc + (3600000 * 5.5));
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return days[istTime.getDay()] || "Monday";
+}
+window.getCurrentIndianDay = getCurrentIndianDay;
+
+function getIndianCurrentMinutes() {
+  try {
+    const options = { timeZone: "Asia/Kolkata", hour: "numeric", minute: "numeric", hour12: false };
+    const parts = new Intl.DateTimeFormat("en-US", options).formatToParts(new Date());
+    let h = 0, m = 0;
+    parts.forEach(p => {
+      if (p.type === "hour") h = parseInt(p.value, 10);
+      if (p.type === "minute") m = parseInt(p.value, 10);
+    });
+    return (h * 60) + m;
+  } catch(e) {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const ist = new Date(utc + (3600000 * 5.5));
+    return (ist.getHours() * 60) + ist.getMinutes();
+  }
+}
+
+function parseEndTimeToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const str = String(timeStr).trim();
+  const parts = str.split("-");
+  const endPart = (parts.length > 1 ? parts[1] : parts[0]).trim();
+  const match = endPart.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i);
+  if (!match) return parseTimeStringToMinutes(timeStr);
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3] ? match[3].toUpperCase() : null;
+
+  if (ampm === "PM" && hours < 12) hours += 12;
+  if (ampm === "AM" && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+}
+
+function isPeriodPassedToday(dayName, timeStr) {
+  const currentIndianDay = getCurrentIndianDay();
+  if (!dayName || dayName.toLowerCase() !== currentIndianDay.toLowerCase()) {
+    return false;
+  }
+  const endMinutes = parseEndTimeToMinutes(timeStr);
+  const currentMinutes = getIndianCurrentMinutes();
+  return currentMinutes > endMinutes;
+}
+
+function isPeriodOngoingToday(dayName, timeStr) {
+  const currentIndianDay = getCurrentIndianDay();
+  if (!dayName || dayName.toLowerCase() !== currentIndianDay.toLowerCase()) {
+    return false;
+  }
+  const startMinutes = parseTimeStringToMinutes(timeStr);
+  const endMinutes = parseEndTimeToMinutes(timeStr);
+  const currentMinutes = getIndianCurrentMinutes();
+  return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+}
+
 const DEFAULT_EXAMS = [
   { id: "e1", sem: "1", title: "Mid-Semester Mathematics Exam", date: "15/09/2026", time: "10:00 AM - 12:00 PM", room: "Hall A-101", subject: "MATH101" },
   { id: "e2", sem: "1", title: "Physics Lab Viva & Practical", date: "18/09/2026", time: "02:00 PM - 04:00 PM", room: "Physics Lab 2", subject: "PHY102" },
@@ -1279,7 +1398,7 @@ function saveStoredTimetable(tt) {
   return true;
 }
 
-let activeTTState = { sem: "1", day: "Monday" };
+let activeTTState = { sem: "1", day: getCurrentIndianDay() };
 
 function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day, skipSync = false, isHistoryNav = false) {
   activeTTState.sem = String(sem);
@@ -1312,34 +1431,60 @@ function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day, s
 
   const sems = ["1", "2", "3", "4", "5", "6", "7", "8"];
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const currentIndianDay = getCurrentIndianDay();
 
   const controlsHtml = `
-    <div class="mb-5 space-y-4 glass p-4 rounded-3xl border border-slate-200 dark:border-slate-800">
-      <div class="space-y-2">
-        <span class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Select Semester:</span>
-        <div class="flex flex-wrap items-center gap-2">
-          ${sems.map(s => `
-            <button class="tt-sem-btn px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition ${String(s) === String(activeTTState.sem) ? 'bg-sky-600 text-white shadow-md' : 'bg-white/60 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-sky-50 dark:hover:bg-slate-700'}" data-tt-sem="${s}">
-              Sem ${s}
-            </button>
-          `).join("")}
+    <div class="mb-6 glass p-4 sm:p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xl space-y-4">
+      <!-- Semester Select Dropdown Row -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="text-base sm:text-lg">🎓</span>
+          <div>
+            <label for="ttSemSelect" class="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 block">
+              Select Semester
+            </label>
+            <p class="text-[11px] font-medium text-slate-400 dark:text-slate-500 hidden sm:block">Choose your semester to view class schedule</p>
+          </div>
+        </div>
+        <div class="relative w-full sm:w-64">
+          <select id="ttSemSelect" class="w-full px-4 py-2.5 text-xs font-black rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500 transition appearance-none pr-10 cursor-pointer">
+            ${sems.map(s => `
+              <option value="${s}" ${String(s) === String(activeTTState.sem) ? 'selected' : ''} class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-extrabold py-1">Semester ${s}</option>
+            `).join("")}
+          </select>
+          <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-sky-600 dark:text-sky-400 font-black text-xs">
+            ▼
+          </div>
         </div>
       </div>
 
-      <div class="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Select Day:</span>
+      <!-- Day Selector Row (3 cols on mobile, 6 cols on desktop) -->
+      <div class="pt-4 border-t border-slate-200/80 dark:border-slate-800/80 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 block">
+              📅 Select Day
+            </span>
+          </div>
           ${isAdmin ? `
             <button id="addTTSlotBtn" class="px-3.5 py-1.5 text-xs font-black text-white bg-gradient-to-r from-sky-500 to-indigo-600 rounded-xl shadow-md hover:from-sky-400 hover:to-indigo-500 transition">
               + Add Class Period
             </button>` : ''}
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-          ${days.map(d => `
-            <button class="tt-day-btn px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition ${d === activeTTState.day ? 'bg-indigo-600 text-white shadow-md' : 'bg-white/60 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700'}" data-tt-day="${d}">
-              ${d}
-            </button>
-          `).join("")}
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2.5 sm:gap-3">
+          ${days.map(d => {
+            const isToday = d.toLowerCase() === currentIndianDay.toLowerCase();
+            const isSelected = d === activeTTState.day;
+            const shortName = d.substring(0, 3);
+            return `
+              <button class="tt-day-btn py-3 px-2 text-xs rounded-2xl transition-all duration-200 flex flex-col items-center justify-center gap-1 border ${isSelected ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white border-indigo-400/60 shadow-lg shadow-indigo-600/30 scale-[1.03] ring-2 ring-indigo-400/40 font-black' : 'bg-slate-100/90 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-200 dark:hover:bg-slate-700/90 font-bold'}" data-tt-day="${d}">
+                <span class="text-xs sm:text-sm font-black tracking-tight text-center ${isSelected ? 'text-white' : 'text-slate-900 dark:text-slate-100'}">
+                  ${d}
+                </span>
+                ${isToday ? `<span class="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-md ${isSelected ? 'bg-white/30 text-white shadow-sm' : 'bg-amber-500 text-white dark:bg-amber-500 dark:text-slate-950 shadow'}">TODAY</span>` : ''}
+              </button>
+            `;
+          }).join("")}
         </div>
       </div>
     </div>
@@ -1349,36 +1494,61 @@ function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day, s
     $("fileList").innerHTML = controlsHtml + `
       <div class="p-8 text-center glass rounded-2xl">
         <p class="text-sm font-extrabold text-slate-600 dark:text-slate-400">No periods scheduled for Semester ${sem} on ${day}.</p>
-        ${isAdmin ? '<p class="mt-1 text-xs text-slate-400">Click "+ Add Class Period" to edit and customize the timetable!</p>' : ''}
+        ${isAdmin ? '<p class="mt-1 text-xs text-slate-400">Click "+ Add Period" to edit and customize the timetable!</p>' : ''}
       </div>`;
     wireTTEvents();
     return;
   }
 
-  const periodsHtml = dayPeriods.map(p => `
-    <div class="file-row border-l-4 border-l-sky-500 cursor-pointer transition hover:scale-[1.005]" onclick="showTimetableDetail('${p.id}')">
-      <div class="file-icon bg-sky-500/10 text-sky-600 dark:text-sky-400 font-black">⏰</div>
-      <div class="file-main">
-        <div class="file-name">${escapeHtml(p.subject)}</div>
-        <div class="file-meta">
-          ⏰ Slot: ${escapeHtml(p.time)} • 📍 Room: ${escapeHtml(p.room || "LH")} • 👨‍🏫 Faculty: ${escapeHtml(p.faculty || "Staff")}
+  const periodsHtml = dayPeriods.map(p => {
+    const isPassed = isPeriodPassedToday(activeTTState.day, p.time);
+    const isOngoing = isPeriodOngoingToday(activeTTState.day, p.time);
+
+    let borderClass = "border-l-sky-500";
+    let containerClass = "hover:scale-[1.005]";
+    let statusBadge = "";
+
+    if (isOngoing) {
+      borderClass = "border-l-emerald-500";
+      containerClass = "bg-emerald-50/40 dark:bg-emerald-950/20 ring-2 ring-emerald-500/30 hover:scale-[1.005]";
+      statusBadge = `<span class="px-2 py-0.5 text-[10px] font-black uppercase rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 animate-pulse border border-emerald-300 dark:border-emerald-800">Live Now 🟢</span>`;
+    } else if (isPassed) {
+      borderClass = "border-l-slate-400 dark:border-slate-600";
+      containerClass = "opacity-60 bg-slate-100/40 dark:bg-slate-900/40";
+      statusBadge = `<span class="px-2 py-0.5 text-[10px] font-black uppercase rounded-md bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-300 dark:border-slate-700">Completed ✓</span>`;
+    }
+
+    return `
+      <div class="file-row border-l-4 ${borderClass} ${containerClass} cursor-pointer transition" onclick="showTimetableDetail('${p.id}')">
+        <div class="file-icon ${isPassed ? 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400' : isOngoing ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-sky-500/10 text-sky-600 dark:text-sky-400'} font-black">
+          ${isPassed ? '✓' : '⏰'}
         </div>
+        <div class="file-main">
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="file-name ${isPassed ? 'line-through text-slate-400 dark:text-slate-500 font-semibold' : ''}">${escapeHtml(p.subject)}</div>
+            ${statusBadge}
+          </div>
+          <div class="file-meta">
+            ⏰ Slot: ${escapeHtml(p.time)} • 📍 Room: ${escapeHtml(p.room || "LH")} • 👨‍🏫 Faculty: ${escapeHtml(p.faculty || "Staff")}
+          </div>
+        </div>
+        ${isAdmin ? `
+          <div class="row-actions" onclick="event.stopPropagation()">
+            <button class="action-btn text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40" onclick="deleteTTSlot('${p.id}')">Delete 🗑️</button>
+          </div>` : ''}
       </div>
-      ${isAdmin ? `
-        <div class="row-actions" onclick="event.stopPropagation()">
-          <button class="action-btn text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40" onclick="deleteTTSlot('${p.id}')">Delete 🗑️</button>
-        </div>` : ''}
-    </div>
-  `).join("");
+    `;
+  }).join("");
 
   $("fileList").innerHTML = controlsHtml + periodsHtml;
   wireTTEvents();
 }
 
 function wireTTEvents() {
-  document.querySelectorAll(".tt-sem-btn").forEach(btn => {
-    btn.onclick = () => renderTimetableView(btn.dataset.ttSem, activeTTState.day, true);
-  });
+  const semSelect = $("ttSemSelect");
+  if (semSelect) {
+    semSelect.onchange = (e) => renderTimetableView(e.target.value, activeTTState.day, true);
+  }
 
   document.querySelectorAll(".tt-day-btn").forEach(btn => {
     btn.onclick = () => renderTimetableView(activeTTState.sem, btn.dataset.ttDay, true);
@@ -1493,7 +1663,12 @@ function showExamDetail(id) {
     </div>
   `;
 
+  if (modal && modal.parentNode !== document.body) {
+    document.body.appendChild(modal);
+  }
   modal.classList.remove("hidden");
+  modal.removeAttribute("hidden");
+  modal.setAttribute("style", "display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); justify-content: center; align-items: center; pointer-events: auto !important;");
 }
 
 function showTimetableDetail(id) {
@@ -1551,12 +1726,20 @@ function showTimetableDetail(id) {
     </div>
   `;
 
+  if (modal && modal.parentNode !== document.body) {
+    document.body.appendChild(modal);
+  }
   modal.classList.remove("hidden");
+  modal.removeAttribute("hidden");
+  modal.setAttribute("style", "display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); justify-content: center; align-items: center; pointer-events: auto !important;");
 }
 
 function closeItemDetailModal() {
   const modal = $("itemDetailModal");
-  if (modal) modal.classList.add("hidden");
+  if (modal) {
+    modal.classList.add("hidden");
+    modal.setAttribute("style", "display: none !important;");
+  }
 }
 
 window.showExamDetail = showExamDetail;
@@ -1605,21 +1788,41 @@ if (headerSettingsBtn) {
 }
 
 function openSettingsModal() {
-  if (settingsModal) settingsModal.classList.remove("hidden");
+  const m = $("settingsModal");
+  if (m) {
+    if (m.parentNode !== document.body) document.body.appendChild(m);
+    m.classList.remove("hidden");
+    m.removeAttribute("hidden");
+    m.setAttribute("style", "display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); justify-content: center; align-items: center; pointer-events: auto !important;");
+  }
 }
 
 function closeSettingsModal() {
-  if (settingsModal) settingsModal.classList.add("hidden");
+  const m = $("settingsModal");
+  if (m) {
+    m.classList.add("hidden");
+    m.setAttribute("style", "display: none !important;");
+  }
 }
 
 if ($("closeSettingsBtn")) $("closeSettingsBtn").onclick = closeSettingsModal;
 
-const contactModal = $("contactModal");
 function openContactModal() {
-  if (contactModal) contactModal.classList.remove("hidden");
+  const m = $("contactModal");
+  if (m) {
+    if (m.parentNode !== document.body) document.body.appendChild(m);
+    m.classList.remove("hidden");
+    m.removeAttribute("hidden");
+    m.setAttribute("style", "display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); justify-content: center; align-items: center; pointer-events: auto !important;");
+  }
 }
+
 function closeContactModal() {
-  if (contactModal) contactModal.classList.add("hidden");
+  const m = $("contactModal");
+  if (m) {
+    m.classList.add("hidden");
+    m.setAttribute("style", "display: none !important;");
+  }
 }
 
 if ($("contactMeBtn")) $("contactMeBtn").onclick = openContactModal;
@@ -1856,9 +2059,39 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  if ($("adminExportLogsBtn")) {
-    $("adminExportLogsBtn").onclick = () => {
-      if (typeof exportVisitorLogs === "function") exportVisitorLogs();
+  if ($("uniqueUserSearchInput")) {
+    $("uniqueUserSearchInput").oninput = (e) => {
+      if (typeof renderUniqueUsersTable === "function") renderUniqueUsersTable(e.target.value);
+    };
+  }
+
+  if ($("statCardUniqueUsers")) {
+    $("statCardUniqueUsers").onclick = () => {
+      if (typeof openUniqueUsersModal === "function") openUniqueUsersModal();
+    };
+  }
+
+  if ($("statCardTotalVisits")) {
+    $("statCardTotalVisits").onclick = () => {
+      if (typeof openVaultStatsModal === "function") openVaultStatsModal();
+    };
+  }
+
+  if ($("statCardDownloads")) {
+    $("statCardDownloads").onclick = () => {
+      if (typeof openDownloadsStatsModal === "function") openDownloadsStatsModal();
+    };
+  }
+
+  if ($("statCardActivePins")) {
+    $("statCardActivePins").onclick = () => {
+      if (typeof openAvailablePinsModal === "function") openAvailablePinsModal();
+    };
+  }
+
+  if ($("downloadSearchInput")) {
+    $("downloadSearchInput").oninput = (e) => {
+      if (typeof renderDownloadsStatsTable === "function") renderDownloadsStatsTable(e.target.value);
     };
   }
 
@@ -1901,4 +2134,399 @@ document.addEventListener("DOMContentLoaded", () => {
 
 window.addEventListener("pageshow", () => {
   updateGoogleLoginUI();
+});
+
+let activeAttendanceSearch = "";
+let activeAttendanceFilter = "all";
+
+function renderAttendanceVaultView(searchQuery = activeAttendanceSearch, statusFilter = activeAttendanceFilter) {
+  activeAttendanceSearch = searchQuery;
+  activeAttendanceFilter = statusFilter;
+
+  state.activeNav = "attendance";
+  pushNavState({
+    type: "attendance",
+    folderId: null,
+    nav: "attendance"
+  });
+
+  if ($("topNavCards")) $("topNavCards").classList.add("hidden");
+  if ($("searchBarContainer")) $("searchBarContainer").classList.add("hidden");
+  if ($("breadcrumb")) {
+    $("breadcrumb").classList.add("hidden");
+    $("breadcrumb").innerHTML = "";
+  }
+
+  if ($("searchInput")) $("searchInput").value = "";
+  if ($("folderTitle")) $("folderTitle").textContent = "Student Attendance Portal 📊";
+
+  $("emptyState").classList.add("hidden");
+  $("loading").classList.add("hidden");
+
+  const attendanceData = (typeof getStoredAttendance === "function") ? getStoredAttendance() : [];
+  const query = searchQuery.toLowerCase().trim();
+
+  let filtered = attendanceData.filter(student => {
+    if (!student) return false;
+    const usn = (student.usn || "").toLowerCase();
+    const name = (student.name || "").toLowerCase();
+    return usn.includes(query) || name.includes(query);
+  });
+
+  if (statusFilter === "low") {
+    filtered = filtered.filter(s => Number(s.average || 0) < 75);
+  } else if (statusFilter === "good") {
+    filtered = filtered.filter(s => Number(s.average || 0) >= 75);
+  }
+
+  const totalStudents = attendanceData.length;
+  const avgAttendance = totalStudents > 0
+    ? (attendanceData.reduce((acc, s) => acc + Number(s.average || 0), 0) / totalStudents).toFixed(1)
+    : "0.0";
+  const lowCount = attendanceData.filter(s => Number(s.average || 0) < 75).length;
+  const topAvg = totalStudents > 0
+    ? Math.max(...attendanceData.map(s => Number(s.average || 0))).toFixed(1)
+    : "0.0";
+
+  $("fileCount").textContent = `${filtered.length.toLocaleString()} Students`;
+
+  let controlsEl = $("attendanceHeaderControls");
+  if (!controlsEl) {
+    $("fileList").innerHTML = `
+      <div id="attendanceHeaderControls" class="mb-6 space-y-4 glass p-4 sm:p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xl">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="p-3.5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/60">
+            <div class="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Total Students</div>
+            <div id="attTotalStudentsVal" class="mt-1 text-xl sm:text-2xl font-black text-indigo-700 dark:text-indigo-300">${totalStudents}</div>
+          </div>
+          <div class="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/60">
+            <div class="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Class Average</div>
+            <div id="attClassAvgVal" class="mt-1 text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-300">${avgAttendance}%</div>
+          </div>
+          <div class="p-3.5 rounded-2xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-800/60">
+            <div class="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">Low Attendance (&lt;75%)</div>
+            <div id="attLowCountVal" class="mt-1 text-xl sm:text-2xl font-black text-rose-700 dark:text-rose-300">${lowCount}</div>
+          </div>
+          <div class="p-3.5 rounded-2xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/60 dark:border-purple-800/60">
+            <div class="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">Top Attendance</div>
+            <div id="attTopAvgVal" class="mt-1 text-xl sm:text-2xl font-black text-purple-700 dark:text-purple-300">${topAvg}%</div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-200/80 dark:border-slate-800/80 flex flex-col sm:flex-row items-center gap-3 justify-between">
+          <div class="relative w-full sm:w-96">
+            <input id="attendanceSearchInput" type="search" inputmode="search" autocomplete="off" spellcheck="false" placeholder="Search by USN (e.g. CS25131) or Student Name..."
+              class="w-full px-4 py-3 sm:py-3 pl-10 pr-9 text-xs sm:text-sm font-bold rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500 transition appearance-none" />
+            <span class="absolute left-3.5 top-3 text-slate-400 text-sm pointer-events-none">🔍</span>
+            <button id="clearAttendanceSearchBtn" type="button" onclick="const i=document.getElementById('attendanceSearchInput'); if(i){i.value=''; i.dispatchEvent(new Event('input'));}"
+              class="absolute right-2.5 top-2.5 h-7 w-7 flex items-center justify-center rounded-xl text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition">✕</button>
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <select id="attendanceStatusFilter" class="w-full sm:w-auto px-4 py-3 sm:py-2.5 text-xs font-black rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="all">All Students (${totalStudents})</option>
+              <option value="low">⚠️ Low Attendance (&lt;75%)</option>
+              <option value="good">✅ Good Attendance (≥75%)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="attendanceStudentCardsList" class="space-y-4"></div>
+      <footer class="mt-10 mb-6 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-slate-800/60 pt-6">
+        Deleveloped by Aniket CS25131
+      </footer>
+    `;
+    wireAttendanceEvents();
+  }
+
+  if ($("attTotalStudentsVal")) $("attTotalStudentsVal").textContent = totalStudents;
+  if ($("attClassAvgVal")) $("attClassAvgVal").textContent = `${avgAttendance}%`;
+  if ($("attLowCountVal")) $("attLowCountVal").textContent = lowCount;
+  if ($("attTopAvgVal")) $("attTopAvgVal").textContent = `${topAvg}%`;
+
+  const cardsContainer = $("attendanceStudentCardsList");
+  if (!cardsContainer) return;
+
+  if (filtered.length === 0) {
+    cardsContainer.innerHTML = `
+      <div class="p-10 text-center glass rounded-3xl">
+        <div class="text-3xl mb-2">🔍</div>
+        <p class="text-sm font-extrabold text-slate-700 dark:text-slate-300">No student attendance records match "${escapeHtml(searchQuery)}".</p>
+        <p class="mt-1 text-xs text-slate-400">Try searching with another USN or Name.</p>
+      </div>`;
+    return;
+  }
+
+  cardsContainer.innerHTML = filtered.map(st => {
+    const avg = Number(st.average || 0);
+    let badgeBg = "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800";
+    let statusLabel = "Eligible";
+    if (avg < 75) {
+      badgeBg = "bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border-rose-300 dark:border-rose-800 animate-pulse";
+      statusLabel = "Shortage ⚠️";
+    } else if (avg < 85) {
+      badgeBg = "bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-300 dark:border-amber-800";
+      statusLabel = "Satisfactory";
+    }
+
+    const mainEntries = Object.entries(st.main || {});
+    const mdmEntries = Object.entries(st.mdm || {}).filter(([_, val]) => val !== undefined && val !== null && val !== "");
+    const openEntries = Object.entries(st.openElective || {}).filter(([_, val]) => val !== undefined && val !== null && val !== "");
+
+    return `
+      <div class="p-5 rounded-3xl glass border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 space-y-4 cursor-pointer select-none" data-student-usn="${escapeHtml(st.usn)}" onclick="if(typeof showStudentAttendanceDetail==='function') showStudentAttendanceDetail('${escapeHtml(st.usn)}'); if(typeof showStudentModal==='function') showStudentModal('${escapeHtml(st.usn)}');">
+        <div class="flex items-start justify-between flex-wrap gap-3">
+          <div class="flex items-center gap-3">
+            <div class="flex h-11 w-11 items-center justify-center rounded-2xl ${avg < 75 ? 'bg-rose-500/20 text-rose-600' : 'bg-emerald-500/20 text-emerald-600'} font-black text-lg">
+              🎓
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h4 class="text-base font-black text-slate-900 dark:text-slate-100">${escapeHtml(st.name)}</h4>
+                <span class="px-2 py-0.5 text-[10px] font-mono font-black uppercase rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                  ${escapeHtml(st.usn)}
+                </span>
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Click for full subject analytics breakdown</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="text-right">
+              <div class="text-[10px] font-black uppercase tracking-wider text-slate-400">Average Attendance</div>
+              <div class="px-3 py-1 rounded-xl text-sm font-black border ${badgeBg} inline-block mt-0.5 shadow-sm">
+                ${avg.toFixed(1)}% (${statusLabel})
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+          <div class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Subject-wise Attendance</div>
+          <div class="flex flex-wrap items-center gap-2">
+            ${mainEntries.map(([sub, val]) => `
+              <div class="px-2.5 py-1 rounded-xl glass border border-slate-200 dark:border-slate-800 text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
+                <span class="text-slate-500 dark:text-slate-400">${escapeHtml(sub)}:</span>
+                <span class="${Number(val) < 75 ? 'text-rose-600 dark:text-rose-400 font-black' : 'text-slate-900 dark:text-slate-100'}">${val}%</span>
+              </div>
+            `).join("")}
+
+            ${mdmEntries.map(([sub, val]) => `
+              <div class="px-2.5 py-1 rounded-xl glass border border-amber-300/60 dark:border-amber-800/60 bg-amber-50/40 dark:bg-amber-950/20 text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
+                <span class="text-amber-700 dark:text-amber-400 font-bold">${escapeHtml(sub)} (MDM):</span>
+                <span class="${Number(val) < 75 ? 'text-rose-600 dark:text-rose-400 font-black' : 'text-amber-900 dark:text-amber-200'}">${val}%</span>
+              </div>
+            `).join("")}
+
+            ${openEntries.map(([sub, val]) => `
+              <div class="px-2.5 py-1 rounded-xl glass border border-purple-300/60 dark:border-purple-800/60 bg-purple-50/40 dark:bg-purple-950/20 text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
+                <span class="text-purple-700 dark:text-purple-400 font-bold">${escapeHtml(sub)} (OE):</span>
+                <span class="${Number(val) < 75 ? 'text-rose-600 dark:text-rose-400 font-black' : 'text-purple-900 dark:text-purple-200'}">${val}%</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  cardsContainer.querySelectorAll("[data-student-usn]").forEach(card => {
+    card.style.cursor = "pointer";
+    card.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const usn = card.getAttribute("data-student-usn");
+      if (usn) showStudentAttendanceDetail(usn);
+    };
+  });
+}
+
+function wireAttendanceEvents() {
+  const searchInp = $("attendanceSearchInput");
+  if (searchInp) {
+    searchInp.oninput = (e) => renderAttendanceVaultView(e.target.value, activeAttendanceFilter);
+  }
+
+  const filterSel = $("attendanceStatusFilter");
+  if (filterSel) {
+    filterSel.onchange = (e) => renderAttendanceVaultView(activeAttendanceSearch, e.target.value);
+  }
+}
+
+function getAttendanceModalElement() {
+  let el = $("studentAttendanceModal") || $("studentModal");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "studentAttendanceModal";
+    el.className = "hidden fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md cursor-pointer";
+    el.onclick = function(e) { if(e.target === this) closeStudentAttendanceModal(); };
+    el.innerHTML = `
+      <div onclick="event.stopPropagation()" class="glass w-full max-w-2xl max-h-[88vh] rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900 flex flex-col overflow-hidden relative cursor-default">
+        <div class="mb-4 flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-sm">
+              📊
+            </div>
+            <div>
+              <h3 id="studentAttendanceModalTitle" class="text-lg font-black text-slate-900 dark:text-slate-100">Student Attendance Report</h3>
+              <p id="studentAttendanceModalSubtitle" class="text-xs text-slate-500 dark:text-slate-400">Detailed subject-wise breakdown & percentage analytics</p>
+            </div>
+          </div>
+          <button onclick="closeStudentAttendanceModal()" type="button" class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 transition">✕</button>
+        </div>
+        <div id="studentAttendanceModalContent" class="overflow-y-auto flex-1 space-y-4 pr-1"></div>
+      </div>
+    `;
+  }
+  if (el && el.parentNode !== document.body) {
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function showStudentAttendanceDetail(usn) {
+  const modal = getAttendanceModalElement();
+  const attendanceData = (typeof getStoredAttendance === "function") ? getStoredAttendance() : [];
+  const cleanUsn = String(usn || "").trim().toLowerCase();
+
+  let student = attendanceData.find(s =>
+    s && (
+      (s.usn && String(s.usn).trim().toLowerCase() === cleanUsn) ||
+      (s.name && String(s.name).trim().toLowerCase() === cleanUsn)
+    )
+  );
+
+  if (!student && typeof DEFAULT_ATTENDANCE !== "undefined" && Array.isArray(DEFAULT_ATTENDANCE)) {
+    student = DEFAULT_ATTENDANCE.find(s =>
+      s && (
+        (s.usn && String(s.usn).trim().toLowerCase() === cleanUsn) ||
+        (s.name && String(s.name).trim().toLowerCase() === cleanUsn)
+      )
+    );
+  }
+
+  if (!student) {
+    student = {
+      usn: String(usn || "N/A"),
+      name: "Student Record",
+      average: 85,
+      main: { "CAO": 85, "DSA": 85, "ED": 85, "DMGT": 85 },
+      mdm: {},
+      openElective: {}
+    };
+  }
+
+  const titleEl = $("studentAttendanceModalTitle") || $("modalStudentTitle");
+  if (titleEl) titleEl.textContent = `${student.name} (${student.usn})`;
+
+  const contentEl = $("studentAttendanceModalContent") || $("modalStudentContent");
+  if (!contentEl) return;
+
+  const avg = Number(student.average || 0);
+
+    const mainEntries = student && student.main && typeof student.main === "object" ? Object.entries(student.main) : [];
+    const mdmEntries = student && student.mdm && typeof student.mdm === "object"
+      ? Object.entries(student.mdm).filter(([_, val]) => val !== undefined && val !== null && val !== "")
+      : [];
+    const openEntries = student && student.openElective && typeof student.openElective === "object"
+      ? Object.entries(student.openElective).filter(([_, val]) => val !== undefined && val !== null && val !== "")
+      : [];
+
+    contentEl.innerHTML = `
+      <div class="p-3.5 sm:p-4 rounded-2xl glass border border-slate-200 dark:border-slate-800 space-y-2 bg-gradient-to-r from-indigo-50/50 via-emerald-50/30 to-teal-50/50 dark:from-indigo-950/20 dark:via-emerald-950/20 dark:to-teal-950/20">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Cumulative Average</span>
+            <h4 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">${avg.toFixed(1)}%</h4>
+          </div>
+          <div class="px-2.5 py-1 rounded-xl text-[11px] font-black ${avg < 75 ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}">
+            ${avg >= 75 ? 'Exam Eligible ✅' : 'Attendance Shortage ⚠️'}
+          </div>
+        </div>
+        <div class="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+          <div class="h-full rounded-full transition-all duration-500 ${avg < 75 ? 'bg-gradient-to-r from-rose-500 to-amber-500' : 'bg-gradient-to-r from-emerald-500 to-teal-600'}" style="width: ${Math.min(avg, 100)}%"></div>
+        </div>
+      </div>
+
+      <div class="space-y-1.5">
+        <h5 class="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Main Subjects (Mandatory)</h5>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          ${mainEntries.map(([sub, val]) => `
+            <div class="p-2.5 rounded-xl glass border border-slate-200 dark:border-slate-800 space-y-1">
+              <div class="flex items-center justify-between text-xs font-extrabold">
+                <span class="text-slate-800 dark:text-slate-200 truncate pr-1">${escapeHtml(sub)}</span>
+                <span class="${Number(val) < 75 ? 'text-rose-600 font-black' : 'text-slate-900 dark:text-slate-100'}">${val}%</span>
+              </div>
+              <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                <div class="h-full rounded-full ${Number(val) < 75 ? 'bg-rose-500' : 'bg-indigo-600'}" style="width: ${Math.min(Number(val), 100)}%"></div>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+
+      ${mdmEntries.length > 0 ? `
+        <div class="space-y-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
+          <h5 class="text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">MDM Elective Subjects</h5>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            ${mdmEntries.map(([sub, val]) => `
+              <div class="p-2.5 rounded-xl glass border border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-950/20 space-y-1">
+                <div class="flex items-center justify-between text-xs font-extrabold">
+                  <span class="text-amber-900 dark:text-amber-200 truncate pr-1">${escapeHtml(sub)}</span>
+                  <span class="${Number(val) < 75 ? 'text-rose-600 font-black' : 'text-amber-900 dark:text-amber-100'}">${val}%</span>
+                </div>
+                <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full ${Number(val) < 75 ? 'bg-rose-500' : 'bg-amber-500'}" style="width: ${Math.min(Number(val), 100)}%"></div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ''}
+
+      ${openEntries.length > 0 ? `
+        <div class="space-y-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
+          <h5 class="text-[11px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">Open Elective Subjects</h5>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            ${openEntries.map(([sub, val]) => `
+              <div class="p-2.5 rounded-xl glass border border-purple-200 dark:border-purple-900/60 bg-purple-50/30 dark:bg-purple-950/20 space-y-1">
+                <div class="flex items-center justify-between text-xs font-extrabold">
+                  <span class="text-purple-900 dark:text-purple-200 truncate pr-1">${escapeHtml(sub)}</span>
+                  <span class="${Number(val) < 75 ? 'text-rose-600 font-black' : 'text-purple-900 dark:text-purple-100'}">${val}%</span>
+                </div>
+                <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full ${Number(val) < 75 ? 'bg-rose-500' : 'bg-purple-500'}" style="width: ${Math.min(Number(val), 100)}%"></div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ''}
+    `;
+
+  modal.classList.remove("hidden");
+  modal.removeAttribute("hidden");
+  modal.setAttribute("style", "display: flex !important; position: fixed !important; top: 0; left: 0; right: 0; bottom: 0; z-index: 999999 !important; background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); justify-content: center; align-items: center; pointer-events: auto !important;");
+}
+
+function closeStudentAttendanceModal() {
+  const modal = getAttendanceModalElement();
+  if (modal) {
+    modal.classList.add("hidden");
+    modal.setAttribute("style", "display: none !important;");
+  }
+}
+
+window.renderAttendanceVaultView = renderAttendanceVaultView;
+window.showStudentAttendanceDetail = showStudentAttendanceDetail;
+window.showStudentModal = showStudentAttendanceDetail;
+window.closeStudentAttendanceModal = closeStudentAttendanceModal;
+window.closeStudentModal = closeStudentAttendanceModal;
+
+document.addEventListener("click", (e) => {
+  const card = e.target.closest("[data-student-usn]");
+  if (card) {
+    const usn = card.dataset.studentUsn;
+    if (usn) {
+      showStudentAttendanceDetail(usn);
+    }
+  }
 });

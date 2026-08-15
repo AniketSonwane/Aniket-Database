@@ -785,6 +785,9 @@
             OPEN →
           </button>
         </div>
+        <footer class="mt-8 text-center text-xs font-semibold text-slate-500 dark:text-slate-400">
+          Deleveloped by Aniket CS25131
+        </footer>
       </div>
     </section>
     <section id="adminScreen" class="hidden animate-fade-in">
@@ -798,9 +801,6 @@
             <div class="flex items-center gap-2">
               <h2 class="text-xl font-black tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">Super Admin
                 Control Center</h2>
-              <span
-                class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300">Live
-                Telemetry</span>
             </div>
             <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Track user visits, downloads, manage PINs
               & system settings</p>
@@ -814,45 +814,57 @@
         </div>
       </div>
       <div class="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-        <div class="glass p-4 rounded-3xl border border-slate-200 dark:border-slate-800/80">
+        <div id="statCardUniqueUsers" onclick="openUniqueUsersModal()" class="glass p-4 rounded-3xl border border-slate-200 dark:border-slate-800/80 cursor-pointer hover:border-indigo-500/50 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
           <div
-            class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
             <span>Unique Visitors</span>
-            <span>👤</span>
+            <span class="text-sm group-hover:scale-110 transition">👤</span>
           </div>
           <div id="statTotalUsers"
             class="mt-2 text-2xl font-black tracking-tight text-indigo-600 dark:text-indigo-400 sm:text-3xl">0</div>
-          <p class="mt-1 text-[11px] font-medium text-slate-400 dark:text-slate-500">Tracked Gmails</p>
+          <p class="mt-1 text-[11px] font-medium text-slate-400 dark:text-slate-500 flex items-center justify-between">
+            <span>Tracked Gmails</span>
+            <span class="text-[10px] text-indigo-500 font-bold underline">Click to view ↗</span>
+          </p>
         </div>
-        <div class="glass p-4 rounded-3xl border border-slate-200 dark:border-slate-800/80">
+        <div id="statCardTotalVisits" onclick="openVaultStatsModal()" class="glass p-4 rounded-3xl border border-slate-200 dark:border-slate-800/80 cursor-pointer hover:border-purple-500/50 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
           <div
-            class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition">
             <span>Total Visits</span>
-            <span>⚡</span>
+            <span class="text-sm group-hover:scale-110 transition">⚡</span>
           </div>
           <div id="statTotalVisits"
             class="mt-2 text-2xl font-black tracking-tight text-purple-600 dark:text-purple-400 sm:text-3xl">0</div>
-          <p class="mt-1 text-[11px] font-medium text-slate-400 dark:text-slate-500">Site Login Sessions</p>
+          <p class="mt-1 text-[11px] font-medium text-slate-400 dark:text-slate-500 flex items-center justify-between">
+            <span>Site Login Sessions</span>
+            <span class="text-[10px] text-purple-500 font-bold underline">Vault Stats ↗</span>
+          </p>
         </div>
-        <div class="glass p-4 rounded-3xl border border-slate-200 dark:border-slate-800/80">
+        <div id="statCardDownloads" onclick="openDownloadsStatsModal()" class="glass p-4 rounded-3xl border border-slate-200 dark:border-slate-800/80 cursor-pointer hover:border-emerald-500/50 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
           <div
-            class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition">
             <span>File Downloads</span>
-            <span>📥</span>
+            <span class="text-sm group-hover:scale-110 transition">📥</span>
           </div>
           <div id="statTotalDownloads"
             class="mt-2 text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400 sm:text-3xl">0</div>
-          <p class="mt-1 text-[11px] font-medium text-slate-400 dark:text-slate-500">Total File Downloads</p>
+          <p class="mt-1 text-[11px] font-medium text-slate-400 dark:text-slate-500 flex items-center justify-between">
+            <span>Total File Downloads</span>
+            <span class="text-[10px] text-emerald-500 font-bold underline">Click to view ↗</span>
+          </p>
         </div>
-        <div class="glass p-4 rounded-3xl border border-slate-200 dark:border-slate-800/80">
+        <div id="statCardActivePins" onclick="openAvailablePinsModal()" class="glass p-4 rounded-3xl border border-slate-200 dark:border-slate-800/80 cursor-pointer hover:border-sky-500/50 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
           <div
-            class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition">
             <span>Available PINs</span>
-            <span>🔑</span>
+            <span class="text-sm group-hover:scale-110 transition">🔑</span>
           </div>
           <div id="statActivePins"
             class="mt-2 text-2xl font-black tracking-tight text-sky-600 dark:text-sky-400 sm:text-3xl">0</div>
-          <p class="mt-1 text-[11px] font-medium text-slate-400 dark:text-slate-500">Active PIN Mappings</p>
+          <p class="mt-1 text-[11px] font-medium text-slate-400 dark:text-slate-500 flex items-center justify-between">
+            <span>Active PIN Mappings</span>
+            <span class="text-[10px] text-sky-500 font-bold underline">Manage PINs ↗</span>
+          </p>
         </div>
       </div>
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -861,15 +873,11 @@
             <div>
               <h3 class="text-base font-extrabold text-slate-900 dark:text-slate-100">Visitor Telemetry Logs</h3>
               <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Recorded visitor emails, login times,
-                visits & downloads</p>
+                visits & downloads (10 entries per page)</p>
             </div>
             <div class="flex items-center gap-2">
               <input id="adminVisitorSearch" type="text" placeholder="Search email..."
                 class="px-3 py-1.5 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
-              <button id="adminExportLogsBtn" type="button"
-                class="px-3 py-1.5 text-xs font-bold rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-300 transition">
-                Export JSON 📥
-              </button>
             </div>
           </div>
           <div class="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-slate-800">
@@ -887,32 +895,10 @@
               </tbody>
             </table>
           </div>
+          <div id="visitorLogsPagination" class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs pt-3 border-t border-slate-200/80 dark:border-slate-800">
+          </div>
         </div>
         <div class="space-y-6">
-          <div class="glass rounded-3xl p-5 border border-slate-200 dark:border-slate-800">
-            <div class="mb-4">
-              <h3 class="text-base font-extrabold text-slate-900 dark:text-slate-100">Available PIN Codes</h3>
-              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">All registered system PIN mappings</p>
-            </div>
-            <div id="adminPinsList" class="space-y-2.5 mb-5">
-            </div>
-            <div class="pt-4 border-t border-slate-200 dark:border-slate-800">
-              <h4 class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Add New PIN
-                Mapping</h4>
-              <div class="space-y-2.5">
-                <input id="newPinCodeInput" type="text" maxlength="4" placeholder="4-Digit PIN (e.g. 2026)"
-                  class="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
-                <input id="newPinNameInput" type="text" placeholder="Folder Name (e.g. Semester 4 Vault)"
-                  class="w-full px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
-                <input id="newPinFolderIdInput" type="text" placeholder="Google Drive Folder ID"
-                  class="w-full px-3 py-2 text-xs font-mono font-medium rounded-xl border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
-                <button id="addPinSubmitBtn" type="button"
-                  class="w-full py-2.5 text-xs font-extrabold text-white rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 transition shadow-md">
-                  + Add PIN Mapping
-                </button>
-              </div>
-            </div>
-          </div>
           <div class="glass rounded-3xl p-5 border border-slate-200 dark:border-slate-800">
             <div class="mb-3 flex items-center justify-between">
               <div>
@@ -941,9 +927,12 @@
           </div>
         </div>
       </div>
+      <footer class="mt-10 mb-4 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-slate-800/60 pt-6">
+        Deleveloped by Aniket CS25131
+      </footer>
     </section>
     <section id="managerScreen" class="hidden animate-fade-in">
-      <nav class="mb-6 grid grid-cols-5 gap-1.5 sm:gap-3">
+      <nav id="topNavCards" class="mb-6 grid grid-cols-5 gap-1.5 sm:gap-3">
         <button data-nav="all"
           class="nav-card nav-active flex flex-col items-center justify-center rounded-xl p-1.5 text-center sm:items-start sm:rounded-3xl sm:p-4 sm:text-left">
           <div
@@ -1116,6 +1105,9 @@
           </div>
         </div>
       </div>
+      <footer class="mt-8 mb-4 text-center text-xs font-semibold text-slate-500 dark:text-slate-400">
+        Deleveloped by Aniket CS25131
+      </footer>
     </section>
   </main>
   <div id="settingsModal"
@@ -1237,7 +1229,7 @@
     }
   </script>
   <div id="adminPinEditModal"
-    class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+    class="hidden fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
     <div
       class="glass w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl">
       <div class="mb-5 flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
@@ -1257,6 +1249,153 @@
           class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 transition">✕</button>
       </div>
       <div id="adminPinModalContent" class="space-y-6">
+      </div>
+    </div>
+  </div>
+  <div id="uniqueUsersModal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+    <div
+      class="glass w-full max-w-2xl max-h-[85vh] rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900 flex flex-col overflow-hidden">
+      <div class="mb-4 flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white font-extrabold text-sm">
+            👥
+          </div>
+          <div>
+            <h3 class="text-lg font-black text-slate-900 dark:text-slate-100">Unique Users & Emails</h3>
+            <p id="uniqueUsersModalSubtitle" class="text-xs text-slate-500 dark:text-slate-400">List of all unique registered visitor accounts</p>
+          </div>
+        </div>
+        <button id="closeUniqueUsersModalBtn" onclick="closeUniqueUsersModal()" type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition">✕</button>
+      </div>
+      <div class="mb-3 flex items-center gap-2 flex-shrink-0">
+        <input id="uniqueUserSearchInput" type="text" placeholder="Search user name or email..."
+          class="w-full px-3.5 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
+      </div>
+      <div class="overflow-y-auto flex-1 rounded-2xl border border-slate-200/80 dark:border-slate-800 pr-1">
+        <table class="w-full text-left border-collapse">
+          <thead class="sticky top-0 bg-slate-100 dark:bg-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 z-10">
+            <tr>
+              <th class="py-2.5 px-4">User Name</th>
+              <th class="py-2.5 px-4">Email Address</th>
+              <th class="py-2.5 px-4 text-center">Visits</th>
+              <th class="py-2.5 px-4">Last Active</th>
+            </tr>
+          </thead>
+          <tbody id="uniqueUsersTableBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- Vault Visit Statistics Modal -->
+  <div id="vaultStatsModal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+    <div
+      class="glass w-full max-w-2xl max-h-[85vh] rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900 flex flex-col overflow-hidden">
+      <div class="mb-4 flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-600 text-white font-extrabold text-sm">
+            ⚡
+          </div>
+          <div>
+            <h3 class="text-lg font-black text-slate-900 dark:text-slate-100">Vault Visit Statistics</h3>
+            <p id="vaultStatsModalSubtitle" class="text-xs text-slate-500 dark:text-slate-400">Total visit counts & percentage breakdown by vault</p>
+          </div>
+        </div>
+        <button id="closeVaultStatsModalBtn" onclick="closeVaultStatsModal()" type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition">✕</button>
+      </div>
+      <div id="vaultStatsContent" class="overflow-y-auto flex-1 space-y-3 pr-1">
+      </div>
+    </div>
+  </div>
+  <!-- File Downloads History Modal -->
+  <div id="downloadsStatsModal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+    <div
+      class="glass w-full max-w-3xl max-h-[85vh] rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900 flex flex-col overflow-hidden">
+      <div class="mb-4 flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-600 text-white font-extrabold text-sm">
+            📥
+          </div>
+          <div>
+            <h3 class="text-lg font-black text-slate-900 dark:text-slate-100">File Download Activity</h3>
+            <p id="downloadsStatsModalSubtitle" class="text-xs text-slate-500 dark:text-slate-400">Detailed list of downloaded files, users, and timestamps</p>
+          </div>
+        </div>
+        <button id="closeDownloadsStatsModalBtn" onclick="closeDownloadsStatsModal()" type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition">✕</button>
+      </div>
+      <div class="mb-3 flex items-center gap-2 flex-shrink-0">
+        <input id="downloadSearchInput" type="text" placeholder="Search file name or user email..."
+          class="w-full px-3.5 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
+      </div>
+      <div class="overflow-y-auto flex-1 rounded-2xl border border-slate-200/80 dark:border-slate-800 pr-1">
+        <table class="w-full text-left border-collapse">
+          <thead class="sticky top-0 bg-slate-100 dark:bg-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 z-10">
+            <tr>
+              <th class="py-2.5 px-4">Downloaded File</th>
+              <th class="py-2.5 px-4">Downloaded By</th>
+              <th class="py-2.5 px-4">Vault</th>
+              <th class="py-2.5 px-4">Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="downloadsStatsTableBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- Available PIN Codes Modal -->
+  <div id="availablePinsModal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+    <div
+      class="glass w-full max-w-2xl max-h-[85vh] rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900 flex flex-col overflow-hidden">
+      <div class="mb-4 flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-600 text-white font-extrabold text-sm">
+            🔑
+          </div>
+          <div>
+            <h3 class="text-lg font-black text-slate-900 dark:text-slate-100">Available PIN Codes</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">All registered system PIN mappings & access control</p>
+          </div>
+        </div>
+        <button id="closeAvailablePinsModalBtn" onclick="closeAvailablePinsModal()" type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition">✕</button>
+      </div>
+      <div class="overflow-y-auto flex-1 space-y-3 pr-1">
+        <div id="adminPinsList" class="space-y-2.5">
+        </div>
+      </div>
+    </div>
+  <!-- Student Attendance Inspection Modal -->
+  <div id="studentAttendanceModal" onclick="if(event.target===this) closeStudentAttendanceModal()"
+    class="hidden fixed inset-0 z-[999999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md cursor-pointer">
+    <div onclick="event.stopPropagation()"
+      class="glass w-full max-w-3xl max-h-[92vh] rounded-3xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900 flex flex-col overflow-hidden relative cursor-default">
+      <div class="mb-3 flex items-center justify-between pb-2.5 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-extrabold text-sm shadow-md">
+            📊
+          </div>
+          <div>
+            <h3 id="studentAttendanceModalTitle" class="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">Student Attendance Report</h3>
+            <p id="studentAttendanceModalSubtitle" class="text-[11px] text-slate-500 dark:text-slate-400">Detailed subject-wise breakdown & percentage analytics</p>
+          </div>
+        </div>
+        <button id="closeStudentAttendanceModalBtn" onclick="closeStudentAttendanceModal()" type="button"
+          class="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition">✕</button>
+      </div>
+      <div id="studentAttendanceModalContent" class="overflow-y-auto flex-1 space-y-3 pr-1">
       </div>
     </div>
   </div>

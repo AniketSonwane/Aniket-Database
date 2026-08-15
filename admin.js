@@ -15,8 +15,10 @@ const adminState = {
   visitorLogs: [],
   userStats: {},
   blockedEmails: [],
+  logsPage: 1,
   pinConfig: {
-    "1717": { id: _adminDec(_ADMIN_SEC.r), name: "Academics" }
+    "1717": { id: _adminDec(_ADMIN_SEC.r), name: "Academics" },
+    "1919": { id: "ATTENDANCE_VAULT", name: "Student Attendance Vault" }
   }
 };
 
@@ -51,6 +53,13 @@ function initAdminData() {
       adminState.pinConfig["1717"] = {
         id: defaultFolderId,
         name: "Academics"
+      };
+      savePinConfig();
+    }
+    if (!adminState.pinConfig["1919"] || adminState.pinConfig["1919"].id !== "ATTENDANCE_VAULT") {
+      adminState.pinConfig["1919"] = {
+        id: "ATTENDANCE_VAULT",
+        name: "Student Attendance Vault"
       };
       savePinConfig();
     }
@@ -105,7 +114,7 @@ function trackUserLogin(email, pinUsed) {
   if (typeof logSharedActivity === "function") {
     logSharedActivity({
       email: email,
-      vault: String(pinUsed || "1717"),
+      vault: formatVaultDisplayName(pinUsed || "1717"),
       timestamp: now,
       item: `Login / Access Vault (${pinUsed})`
     });
@@ -139,6 +148,7 @@ function trackUserDownload(email, fileName) {
 }
 
 function getParsedActivityLogs() {
+  const isSharedConfigured = typeof sharedDataConfigured === "function" && sharedDataConfigured();
   let sheetLogs = [];
   try {
     const raw = localStorage.getItem("fm_shared_activity_logs");
@@ -150,6 +160,7 @@ function getParsedActivityLogs() {
 
   const combined = [];
 
+  // Parse Google Sheet activity logs
   sheetLogs.forEach(entry => {
     if (!entry) return;
     const time = entry.Timestamp || entry.timestamp || entry.time || entry["Login Time"] || "";
@@ -167,7 +178,8 @@ function getParsedActivityLogs() {
     }
   });
 
-  if (adminState.visitorLogs && Array.isArray(adminState.visitorLogs)) {
+  // Only include local visitor logs if shared Google Sheets data is NOT configured
+  if (!isSharedConfigured && adminState.visitorLogs && Array.isArray(adminState.visitorLogs)) {
     adminState.visitorLogs.forEach(log => {
       if (!log || !log.email) return;
       combined.push({
@@ -202,6 +214,61 @@ function renderAdminDashboard() {
   renderBlockedEmails();
 }
 
+function formatVaultDisplayName(vaultRaw) {
+  if (!vaultRaw) return "Academics";
+  const str = String(vaultRaw).trim();
+
+  if (str.includes("1358") || str.toUpperCase().includes("ADMIN")) {
+    return "Admin";
+  }
+
+  if (str === "1717" || str.toLowerCase().includes("academic")) {
+    return "Academics";
+  }
+
+  if (str === "1919" || str === "2024" || str.toLowerCase().includes("attend")) {
+    return "Attendance Vault";
+  }
+
+  if (/^\d{4}\s*-\s*(.+)/.test(str)) {
+    const match = str.match(/^\d{4}\s*-\s*(.+)/);
+    if (match && match[1]) return match[1].trim();
+  }
+
+  if (typeof adminState !== "undefined" && adminState.pinConfig) {
+    if (adminState.pinConfig[str]) {
+      const cfg = adminState.pinConfig[str];
+      return cfg.name || "Vault";
+    }
+    for (const [pin, cfg] of Object.entries(adminState.pinConfig)) {
+      if (cfg && cfg.name && str.toLowerCase() === cfg.name.toLowerCase()) {
+        return cfg.name;
+      }
+    }
+  }
+
+  return str;
+}
+
+function formatActionItemDisplay(itemRaw) {
+  if (!itemRaw) return "Login / Access Vault";
+  let str = String(itemRaw).trim();
+
+  str = str.replace(/\((?:ADMIN\s*\(\d+\)|\b1358\b|ADMIN)\)/gi, "(Admin)");
+  str = str.replace(/\((?:1717)\)/gi, "(Academics)");
+  str = str.replace(/\((?:1919|2024)\)/gi, "(Attendance Vault)");
+  str = str.replace(/ADMIN\s*\(\d+\)/gi, "Admin");
+  return str;
+}
+
+const LOGS_PER_PAGE = 10;
+
+function changeVisitorLogsPage(newPage) {
+  adminState.logsPage = newPage;
+  const searchVal = document.getElementById("adminVisitorSearch")?.value || "";
+  renderVisitorsTable(searchVal);
+}
+
 function renderVisitorsTable(filterQuery = "") {
   const tableBody = document.getElementById("adminVisitorTableBody");
   if (!tableBody) return;
@@ -213,6 +280,8 @@ function renderVisitorsTable(filterQuery = "") {
     logs = logs.filter(l => l.email.toLowerCase().includes(query) || l.vault.toLowerCase().includes(query) || l.item.toLowerCase().includes(query));
   }
 
+  const paginationContainer = document.getElementById("visitorLogsPagination");
+
   if (logs.length === 0) {
     tableBody.innerHTML = `
       <tr>
@@ -220,10 +289,17 @@ function renderVisitorsTable(filterQuery = "") {
           No visitor log records found in Google Sheets.
         </td>
       </tr>`;
+    if (paginationContainer) paginationContainer.innerHTML = "";
     return;
   }
 
-  tableBody.innerHTML = logs.map(l => {
+  const totalPages = Math.ceil(logs.length / LOGS_PER_PAGE) || 1;
+  if (!adminState.logsPage || adminState.logsPage < 1) adminState.logsPage = 1;
+  if (adminState.logsPage > totalPages) adminState.logsPage = totalPages;
+
+  const pageLogs = logs.slice((adminState.logsPage - 1) * LOGS_PER_PAGE, adminState.logsPage * LOGS_PER_PAGE);
+
+  tableBody.innerHTML = pageLogs.map(l => {
     let formattedTime = l.timestamp;
     try {
       const dt = new Date(l.timestamp);
@@ -237,26 +313,54 @@ function renderVisitorsTable(filterQuery = "") {
       }
     } catch(e) {}
 
+    const isSuperAdmin = l.email.toLowerCase().includes("2007aniketsonwane") || l.email.toLowerCase() === (_adminDec(_ADMIN_SEC.e) || "").toLowerCase();
+    const vaultDisplay = formatVaultDisplayName(l.vault);
+    const itemDisplay = formatActionItemDisplay(l.item);
+
     return `
       <tr class="border-b border-slate-200/60 dark:border-slate-800/60 hover:bg-indigo-50/40 dark:hover:bg-slate-900/40 transition">
         <td class="py-3 px-4 text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
-          ${escapeAdminHtml(l.email)}
+          <span class="inline-block h-2 w-2 rounded-full ${isSuperAdmin ? 'bg-purple-500 ring-2 ring-purple-400/40' : 'bg-emerald-500'}"></span>
+          <span class="${isSuperAdmin ? 'text-purple-700 dark:text-purple-300 font-black' : ''}">${escapeAdminHtml(l.email)}</span>
+          ${isSuperAdmin ? '<span class="px-1.5 py-0.5 text-[10px] font-black uppercase rounded bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300">👑 Admin</span>' : ''}
         </td>
         <td class="py-3 px-4 text-xs font-semibold text-slate-700 dark:text-slate-300">
           ${escapeAdminHtml(formattedTime)}
         </td>
         <td class="py-3 px-4 text-xs">
-          <span class="px-2.5 py-1 rounded-lg font-mono text-[11px] font-extrabold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
-            ${escapeAdminHtml(l.vault)}
+          <span class="inline-block whitespace-nowrap px-2.5 py-1 rounded-lg font-mono text-[11px] font-extrabold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 shadow-sm">
+            ${escapeAdminHtml(vaultDisplay)}
           </span>
         </td>
         <td class="py-3 px-4 text-xs font-medium text-slate-800 dark:text-slate-200">
-          ${escapeAdminHtml(l.item)}
+          ${escapeAdminHtml(itemDisplay)}
         </td>
       </tr>`;
   }).join("");
+
+  if (paginationContainer) {
+    const startIdx = (adminState.logsPage - 1) * LOGS_PER_PAGE + 1;
+    const endIdx = Math.min(adminState.logsPage * LOGS_PER_PAGE, logs.length);
+    paginationContainer.innerHTML = `
+      <div class="text-slate-500 dark:text-slate-400 font-semibold">
+        Showing <strong class="text-slate-900 dark:text-slate-100 font-extrabold">${startIdx}-${endIdx}</strong> of <strong class="text-slate-900 dark:text-slate-100 font-extrabold">${logs.length}</strong> entries
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button type="button" onclick="changeVisitorLogsPage(${adminState.logsPage - 1})" ${adminState.logsPage <= 1 ? 'disabled' : ''} class="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition">
+          ← Prev
+        </button>
+        <span class="px-2 py-1 text-xs font-black text-slate-800 dark:text-slate-200">
+          Page ${adminState.logsPage} of ${totalPages}
+        </span>
+        <button type="button" onclick="changeVisitorLogsPage(${adminState.logsPage + 1})" ${adminState.logsPage >= totalPages ? 'disabled' : ''} class="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition">
+          Next →
+        </button>
+      </div>
+    `;
+  }
 }
+
+window.changeVisitorLogsPage = changeVisitorLogsPage;
 
 function renderPinsList() {
   const container = document.getElementById("adminPinsList");
@@ -331,10 +435,18 @@ function togglePinLock(pin) {
 
 let activeAdminModalTab = "security";
 let adminTTFilterSem = "1";
-let adminTTFilterDay = "Monday";
+let adminTTFilterDay = (typeof getCurrentIndianDay === "function") ? getCurrentIndianDay() : "Monday";
+
+let openedFromAvailablePinsModal = false;
 
 function openAdminPinModal(pin) {
   currentEditPin = pin;
+  const availModal = document.getElementById("availablePinsModal");
+  if (availModal && !availModal.classList.contains("hidden")) {
+    openedFromAvailablePinsModal = true;
+    availModal.classList.add("hidden");
+  }
+
   const modal = document.getElementById("adminPinEditModal");
   if (!modal) return;
 
@@ -359,6 +471,15 @@ function openAdminPinModal(pin) {
 function closeAdminPinModal() {
   const modal = document.getElementById("adminPinEditModal");
   if (modal) modal.classList.add("hidden");
+
+  if (openedFromAvailablePinsModal) {
+    openedFromAvailablePinsModal = false;
+    const availModal = document.getElementById("availablePinsModal");
+    if (availModal) {
+      availModal.classList.remove("hidden");
+      if (typeof renderPinsList === "function") renderPinsList();
+    }
+  }
 }
 
 function switchAdminModalTab(tabName, pin) {
@@ -666,16 +787,364 @@ function exportVisitorLogs() {
   if (typeof showToast === "function") showToast("Exported visitor analytics log.");
 }
 
-function clearVisitorLogs() {
-  if (confirm("Are you sure you want to clear all visitor telemetry data?")) {
+async function clearVisitorLogs() {
+  if (confirm("Are you sure you want to clear all visitor telemetry data from Google Sheets & local database?")) {
     adminState.visitorLogs = [];
     adminState.userStats = {};
     localStorage.removeItem("fm_visitor_logs");
     localStorage.removeItem("fm_user_stats");
-    if (typeof showToast === "function") showToast("Cleared visitor telemetry.");
+    localStorage.setItem("fm_shared_activity_logs", JSON.stringify([]));
+
+    if (typeof sharedDataConfigured === "function" && sharedDataConfigured() && typeof clearSharedActivityLogs === "function") {
+      try {
+        await clearSharedActivityLogs();
+        if (typeof showToast === "function") showToast("Cleared visitor telemetry from Google Sheets & local storage.");
+      } catch (err) {
+        console.error("Error clearing Google Sheets logs:", err);
+        if (typeof showToast === "function") showToast("Cleared local telemetry, but Google Sheets update failed.");
+      }
+    } else {
+      if (typeof showToast === "function") showToast("Cleared visitor telemetry.");
+    }
     renderAdminDashboard();
   }
 }
+
+function openUniqueUsersModal() {
+  const modal = document.getElementById("uniqueUsersModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  renderUniqueUsersTable();
+}
+
+function closeUniqueUsersModal() {
+  const modal = document.getElementById("uniqueUsersModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function formatUserNameFromEmail(email) {
+  if (!email) return "Unknown User";
+  const clean = String(email).toLowerCase().trim();
+  const adminEmail = (_adminDec(_ADMIN_SEC.e) || "2007aniketsonwane@gmail.com").toLowerCase().trim();
+  if (clean === adminEmail || clean.includes("2007aniketsonwane")) {
+    return "👑 Super Admin (Aniket)";
+  }
+  const prefix = email.split("@")[0] || email;
+  return prefix
+    .replace(/[._-]/g, " ")
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function renderUniqueUsersTable(filterQuery = "") {
+  const tableBody = document.getElementById("uniqueUsersTableBody");
+  if (!tableBody) return;
+
+  const logs = getParsedActivityLogs();
+  const query = filterQuery.toLowerCase().trim();
+
+  const userMap = new Map();
+
+  logs.forEach(l => {
+    if (!l || !l.email) return;
+    const email = String(l.email).trim().toLowerCase();
+    const formattedEmail = String(l.email).trim();
+
+    if (!userMap.has(email)) {
+      userMap.set(email, {
+        email: formattedEmail,
+        name: formatUserNameFromEmail(formattedEmail),
+        visits: 0,
+        lastActive: l.timestamp,
+        lastVault: l.vault || "Vault"
+      });
+    }
+
+    const userData = userMap.get(email);
+    userData.visits += 1;
+    if (new Date(l.timestamp) > new Date(userData.lastActive)) {
+      userData.lastActive = l.timestamp;
+      userData.lastVault = l.vault || userData.lastVault;
+    }
+  });
+
+  if (adminState.userStats) {
+    Object.values(adminState.userStats).forEach(st => {
+      if (!st || !st.email) return;
+      const email = String(st.email).trim().toLowerCase();
+      if (!userMap.has(email)) {
+        userMap.set(email, {
+          email: st.email,
+          name: formatUserNameFromEmail(st.email),
+          visits: st.visits || 1,
+          lastActive: st.lastSeen || new Date().toISOString(),
+          lastVault: st.lastPin || "Vault"
+        });
+      }
+    });
+  }
+
+  const adminEmail = (_adminDec(_ADMIN_SEC.e) || "2007aniketsonwane@gmail.com").toLowerCase().trim();
+  if (!userMap.has(adminEmail)) {
+    const adminStat = (adminState.userStats && (adminState.userStats[adminEmail] || adminState.userStats["2007aniketsonwane@gmail.com"])) || null;
+    userMap.set(adminEmail, {
+      email: "2007aniketsonwane@gmail.com",
+      name: "👑 Super Admin (Aniket)",
+      visits: adminStat?.visits || 1,
+      lastActive: adminStat?.lastSeen || new Date().toISOString(),
+      lastVault: adminStat?.lastPin || "SUPER_ADMIN"
+    });
+  }
+
+  let users = Array.from(userMap.values());
+
+  if (query) {
+    users = users.filter(u =>
+      u.name.toLowerCase().includes(query) ||
+      u.email.toLowerCase().includes(query)
+    );
+  }
+
+  users.sort((a, b) => new Date(b.lastActive || 0) - new Date(a.lastActive || 0));
+
+  const subtitle = document.getElementById("uniqueUsersModalSubtitle");
+  if (subtitle) {
+    subtitle.textContent = `Total Unique Registered Visitors: ${userMap.size}`;
+  }
+
+  if (users.length === 0) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="4" class="py-8 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
+          No unique user records found.
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tableBody.innerHTML = users.map(u => {
+    let formattedTime = u.lastActive;
+    try {
+      const dt = new Date(u.lastActive);
+      if (!isNaN(dt.getTime())) {
+        formattedTime = dt.toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      }
+    } catch(e) {}
+
+    const isSuperAdmin = u.email.toLowerCase().includes("2007aniketsonwane") || u.email.toLowerCase() === (_adminDec(_ADMIN_SEC.e) || "").toLowerCase();
+
+    return `
+      <tr class="border-b border-slate-200/60 dark:border-slate-800/60 hover:bg-indigo-50/40 dark:hover:bg-slate-900/40 transition">
+        <td class="py-3 px-4 text-xs font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <span class="flex h-6 w-6 items-center justify-center rounded-full ${isSuperAdmin ? 'bg-purple-600 text-white' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'} text-[10px] font-black">
+            ${isSuperAdmin ? '👑' : escapeAdminHtml(u.name.charAt(0))}
+          </span>
+          <span class="${isSuperAdmin ? 'text-purple-700 dark:text-purple-300 font-black' : ''}">${escapeAdminHtml(u.name)}</span>
+          ${isSuperAdmin ? '<span class="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300">Admin</span>' : ''}
+        </td>
+        <td class="py-3 px-4 text-xs font-semibold ${isSuperAdmin ? 'text-purple-600 dark:text-purple-400 font-bold' : 'text-indigo-600 dark:text-indigo-400'}">
+          ${escapeAdminHtml(u.email)}
+        </td>
+        <td class="py-3 px-4 text-xs font-bold text-center text-slate-700 dark:text-slate-300">
+          <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-mono text-[11px]">
+            ${u.visits}
+          </span>
+        </td>
+        <td class="py-3 px-4 text-xs font-medium text-slate-500 dark:text-slate-400">
+          ${escapeAdminHtml(formattedTime)}
+        </td>
+      </tr>`;
+  }).join("");
+}
+
+window.openUniqueUsersModal = openUniqueUsersModal;
+window.closeUniqueUsersModal = closeUniqueUsersModal;
+window.renderUniqueUsersTable = renderUniqueUsersTable;
+window.clearVisitorLogs = clearVisitorLogs;
+
+// Vault Visit Breakdown Modal
+function openVaultStatsModal() {
+  const modal = document.getElementById("vaultStatsModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  renderVaultStatsTable();
+}
+
+function closeVaultStatsModal() {
+  const modal = document.getElementById("vaultStatsModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function renderVaultStatsTable() {
+  const container = document.getElementById("vaultStatsContent");
+  if (!container) return;
+
+  const logs = getParsedActivityLogs();
+  const vaultCounts = new Map();
+  let totalVisits = 0;
+
+  logs.forEach(l => {
+    if (!l) return;
+    const isVisit = (l.item || "").toLowerCase().includes("login") || (l.item || "").toLowerCase().includes("access");
+    if (!isVisit) return;
+    totalVisits += 1;
+    const vName = formatVaultDisplayName(l.vault);
+    vaultCounts.set(vName, (vaultCounts.get(vName) || 0) + 1);
+  });
+
+  if (totalVisits === 0) totalVisits = logs.length || 1;
+
+  const sortedVaults = Array.from(vaultCounts.entries()).sort((a, b) => b[1] - a[1]);
+
+  const subtitle = document.getElementById("vaultStatsModalSubtitle");
+  if (subtitle) {
+    subtitle.textContent = `Total Visits Recorded: ${totalVisits.toLocaleString()}`;
+  }
+
+  if (sortedVaults.length === 0) {
+    container.innerHTML = `
+      <div class="p-8 text-center text-xs font-bold text-slate-400">
+        No vault visit statistics available.
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = sortedVaults.map(([vName, count]) => {
+    const pct = Math.round((count / totalVisits) * 100);
+    return `
+      <div class="p-4 rounded-2xl glass border border-slate-200 dark:border-slate-800 space-y-2">
+        <div class="flex items-center justify-between text-xs font-extrabold text-slate-900 dark:text-slate-100">
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 rounded-lg font-mono text-[11px] font-black bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+              ${escapeAdminHtml(vName)}
+            </span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-purple-600 dark:text-purple-400 font-black">${count.toLocaleString()} visits</span>
+            <span class="text-[11px] font-mono text-slate-500">${pct}%</span>
+          </div>
+        </div>
+        <div class="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+          <div class="bg-gradient-to-r from-purple-500 to-indigo-600 h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+// File Downloads History Modal
+function openDownloadsStatsModal() {
+  const modal = document.getElementById("downloadsStatsModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  renderDownloadsStatsTable();
+}
+
+function closeDownloadsStatsModal() {
+  const modal = document.getElementById("downloadsStatsModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function renderDownloadsStatsTable(filterQuery = "") {
+  const tableBody = document.getElementById("downloadsStatsTableBody");
+  if (!tableBody) return;
+
+  const logs = getParsedActivityLogs();
+  const query = filterQuery.toLowerCase().trim();
+
+  let downloadLogs = logs.filter(l => (l.item || "").toLowerCase().includes("download"));
+
+  if (query) {
+    downloadLogs = downloadLogs.filter(l =>
+      l.email.toLowerCase().includes(query) ||
+      l.item.toLowerCase().includes(query) ||
+      l.vault.toLowerCase().includes(query)
+    );
+  }
+
+  const subtitle = document.getElementById("downloadsStatsModalSubtitle");
+  if (subtitle) {
+    subtitle.textContent = `Total Downloads Recorded: ${downloadLogs.length}`;
+  }
+
+  if (downloadLogs.length === 0) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="4" class="py-8 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
+          No file download records found.
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tableBody.innerHTML = downloadLogs.map(l => {
+    let formattedTime = l.timestamp;
+    try {
+      const dt = new Date(l.timestamp);
+      if (!isNaN(dt.getTime())) {
+        formattedTime = dt.toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      }
+    } catch(e) {}
+
+    const cleanItem = l.item.replace(/^Downloaded:\s*/i, "");
+    const uName = formatUserNameFromEmail(l.email);
+
+    return `
+      <tr class="border-b border-slate-200/60 dark:border-slate-800/60 hover:bg-emerald-50/40 dark:hover:bg-slate-900/40 transition">
+        <td class="py-3 px-4 text-xs font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <span>📄</span>
+          ${escapeAdminHtml(cleanItem)}
+        </td>
+        <td class="py-3 px-4 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <div>${escapeAdminHtml(uName)}</div>
+          <div class="text-[10px] text-slate-400 font-mono">${escapeAdminHtml(l.email)}</div>
+        </td>
+        <td class="py-3 px-4 text-xs">
+          <span class="px-2 py-0.5 rounded-md font-mono text-[11px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+            ${escapeAdminHtml(formatVaultDisplayName(l.vault))}
+          </span>
+        </td>
+        <td class="py-3 px-4 text-xs font-medium text-slate-500 dark:text-slate-400">
+          ${escapeAdminHtml(formattedTime)}
+        </td>
+      </tr>`;
+  }).join("");
+}
+
+// Available PIN Codes Modal
+function openAvailablePinsModal() {
+  const modal = document.getElementById("availablePinsModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  renderPinsList();
+}
+
+function closeAvailablePinsModal() {
+  const modal = document.getElementById("availablePinsModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+window.openVaultStatsModal = openVaultStatsModal;
+window.closeVaultStatsModal = closeVaultStatsModal;
+window.renderVaultStatsTable = renderVaultStatsTable;
+
+window.openDownloadsStatsModal = openDownloadsStatsModal;
+window.closeDownloadsStatsModal = closeDownloadsStatsModal;
+window.renderDownloadsStatsTable = renderDownloadsStatsTable;
+
+window.openAvailablePinsModal = openAvailablePinsModal;
+window.closeAvailablePinsModal = closeAvailablePinsModal;
+
 
 function renderBlockedEmails() {
   const container = document.getElementById("adminBlockedEmailsContainer");

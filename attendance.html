@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Attendance Vault - Aniket's Database</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              900: '#312e81',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Outfit', 'Inter', sans-serif;
+      background-color: #0b0f19;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.12) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.08) 0px, transparent 50%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      color: #f8fafc;
+    }
+
+    html.light body, .light body {
+      background-color: #f8fafc !important;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.06) 0px, transparent 50%) !important;
+      color: #0f172a !important;
+    }
+
+    .glass {
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    html.light .glass, .light .glass {
+      background: rgba(255, 255, 255, 0.85) !important;
+      border-color: rgba(226, 232, 240, 0.8) !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04) !important;
+    }
+
+    .pin-card {
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .pin-key {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      border-radius: 1.25rem;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(15, 23, 42, 0.7);
+      color: #f8fafc;
+      transition: all 0.18s ease;
+      user-select: none;
+    }
+
+    .pin-key:hover {
+      transform: translateY(-2px);
+      border-color: rgba(99, 102, 241, 0.5);
+      background: rgba(99, 102, 241, 0.2);
+    }
+
+    .pin-key:active {
+      transform: scale(0.95);
+    }
+
+    #pinDots span.filled {
+      background: linear-gradient(135deg, #10b981, #14b8a6);
+      border-color: #6ee7b7;
+      box-shadow: 0 0 16px rgba(16, 185, 129, 0.75);
+      transform: scale(1.2);
+    }
+
+    .shake {
+      animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-1px, 0, 0); }
+      20%, 80% { transform: translate3d(2px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+      40%, 60% { transform: translate3d(4px, 0, 0); }
+    }
+  </style>
+</head>
+
+<body class="p-3 sm:p-6 antialiased">
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- Top Header Navigation (NO 5 TOP CARDS) -->
+    <header class="glass rounded-3xl p-4 sm:p-5 flex items-center justify-between shadow-xl border border-slate-200/80 dark:border-slate-800">
+      <div class="flex items-center gap-3">
+        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-2xl shadow-lg shadow-emerald-500/20">
+          📊
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Student Attendance Vault</h1>
+          <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Live Google Sheet Sync (PIN 1919 Protected)</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="themeToggleBtn" type="button" class="p-2.5 rounded-2xl glass hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold transition">
+          🌙
+        </button>
+        <a href="index.html" class="px-4 py-2 text-xs font-black rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 transition flex items-center gap-1.5">
+          <span>🏠</span> Main Dashboard
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Attendance Content Section -->
+    <main id="attendanceMain" class="space-y-6">
+
+      <!-- Summary Stats Row -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="p-4 rounded-3xl glass border border-indigo-200/60 dark:border-indigo-800/60 bg-indigo-50/40 dark:bg-indigo-950/20">
+          <div class="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Total Students</div>
+          <div id="statTotalStudents" class="mt-1 text-2xl sm:text-3xl font-black text-indigo-700 dark:text-indigo-300">61</div>
+        </div>
+        <div class="p-4 rounded-3xl glass border border-emerald-200/60 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/20">
+          <div class="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Class Average</div>
+          <div id="statClassAverage" class="mt-1 text-2xl sm:text-3xl font-black text-emerald-700 dark:text-emerald-300">0.0%</div>
+        </div>
+        <div class="p-4 rounded-3xl glass border border-rose-200/60 dark:border-rose-800/60 bg-rose-50/40 dark:bg-rose-950/20">
+          <div class="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">Low Attendance (&lt;75%)</div>
+          <div id="statLowCount" class="mt-1 text-2xl sm:text-3xl font-black text-rose-700 dark:text-rose-300">0</div>
+        </div>
+        <div class="p-4 rounded-3xl glass border border-purple-200/60 dark:border-purple-800/60 bg-purple-50/40 dark:bg-purple-950/20">
+          <div class="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">Top Attendance</div>
+          <div id="statTopAttendance" class="mt-1 text-2xl sm:text-3xl font-black text-purple-700 dark:text-purple-300">0.0%</div>
+        </div>
+      </div>
+
+      <!-- Main Search Bar & Status Filter Row (Mobile Optimized) -->
+      <div class="glass p-3.5 sm:p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="relative w-full sm:w-96">
+          <input id="searchInput" type="search" inputmode="search" autocomplete="off" spellcheck="false" placeholder="Search by USN (e.g. CS25131) or Student Name..."
+            class="w-full px-4 py-3 sm:py-3.5 pl-11 pr-10 text-xs sm:text-sm font-bold rounded-2xl border border-slate-300/80 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-slate-100 shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500 transition appearance-none" />
+          <span class="absolute left-4 top-3 sm:top-3.5 text-slate-400 text-base pointer-events-none">🔍</span>
+          <button id="clearSearchBtn" type="button" onclick="const i=document.getElementById('searchInput'); if(i){i.value=''; i.dispatchEvent(new Event('input'));}"
+            class="absolute right-3 top-2.5 sm:top-3 h-7 w-7 flex items-center justify-center rounded-xl text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">✕</button>
+        </div>
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+          <select id="statusFilter" class="w-full sm:w-auto px-4 py-3 sm:py-2.5 text-xs font-black rounded-2xl border border-slate-300/80 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="all">All Students (61)</option>
+            <option value="low">⚠️ Low Attendance (&lt;75%)</option>
+            <option value="good">✅ Good Attendance (≥75%)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Student Cards Container -->
+      <div id="studentContainer" class="space-y-4">
+      </div>
+
+      <footer class="mt-10 mb-6 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-slate-800/60 pt-6">
+        Deleveloped by Aniket CS25131
+      </footer>
+    </main>
+
+  </div>
+
+  <!-- Student Attendance Detail Modal -->
+  <div id="studentModal" onclick="if(event.target===this) closeStudentModal()" class="hidden fixed inset-0 z-[999999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md cursor-pointer">
+    <div onclick="event.stopPropagation()" class="glass w-full max-w-3xl max-h-[92vh] rounded-3xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900 flex flex-col overflow-hidden relative cursor-default">
+      <div class="mb-3 flex items-center justify-between pb-2.5 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-sm shadow-md">
+            📊
+          </div>
+          <div>
+            <h3 id="modalStudentTitle" class="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">Student Attendance Breakdown</h3>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">Subject metrics and exam eligibility status</p>
+          </div>
+        </div>
+        <button onclick="closeStudentModal()" type="button" class="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 transition">✕</button>
+      </div>
+      <div id="modalStudentContent" class="overflow-y-auto flex-1 space-y-3 pr-1">
+      </div>
+    </div>
+  </div>
+
+  <script src="shared-data.js"></script>
+  <script src="attendance.js"></script>
+</body>
+
+</html>
