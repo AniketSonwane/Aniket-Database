@@ -28,6 +28,16 @@ const DEFAULT_CONFIG = {
     "2024": {
       id: "ATTENDANCE_VAULT",
       name: "Student Attendance Vault"
+    },
+    "2334": {
+      id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
+      name: "Public Vault",
+      noLoginRequired: true
+    },
+    "1111": {
+      id: _secDec(_SEC_STORE.r),
+      name: "Aniket-Notes",
+      noLoginRequired: true
     }
   }
 };
@@ -213,17 +223,13 @@ function submitPin() {
     return;
   }
 
-  if (!rawEmail || !rawEmail.includes("@") || !rawEmail.includes(".")) {
-    $("pinMessage").textContent = "⛔ Please sign in with your Google Account first.";
-    const card = document.querySelector(".pin-card");
-    if (card) {
-      card.classList.add("shake");
-      setTimeout(() => card.classList.remove("shake"), 380);
-    }
-    return;
+  const entry = state.pin;
+  const pinConfig = (typeof adminState !== "undefined" && adminState.pinConfig) ? adminState.pinConfig : CONFIG.pinFolders;
+  let targetFolder = pinConfig[entry] || CONFIG.pinFolders[entry];
+  if (entry === "1919" || entry === "2024") {
+    targetFolder = { id: "ATTENDANCE_VAULT", name: "Student Attendance Vault" };
   }
 
-  const entry = state.pin;
   const adminEmail = _secDec(_SEC_STORE.e).toLowerCase();
   const adminPin = _secDec(_SEC_STORE.a);
   const isAdminUser = (rawEmail === adminEmail || rawEmail === "2007aniketsonwane@gmail.com");
@@ -257,12 +263,6 @@ function submitPin() {
     return;
   }
 
-  const pinConfig = (typeof adminState !== "undefined" && adminState.pinConfig) ? adminState.pinConfig : CONFIG.pinFolders;
-  let targetFolder = pinConfig[entry] || CONFIG.pinFolders[entry];
-  if (entry === "1919" || entry === "2024") {
-    targetFolder = { id: "ATTENDANCE_VAULT", name: "Student Attendance Vault" };
-  }
-
   if (state.pin.length !== 4 || !targetFolder) {
     $("pinMessage").textContent = "Incorrect PIN. Please try again.";
     const card = document.querySelector(".pin-card");
@@ -274,9 +274,21 @@ function submitPin() {
     return;
   }
 
-  if (entry === "1717" && !isAdminUser) {
+  const isNoLoginRequired = Boolean(targetFolder.noLoginRequired || entry === "2334" || entry === "1111");
+
+  if (!isNoLoginRequired && (!rawEmail || !rawEmail.includes("@") || !rawEmail.includes("."))) {
+    $("pinMessage").textContent = "⛔ Please sign in with your Google Account first.";
+    const card = document.querySelector(".pin-card");
+    if (card) {
+      card.classList.add("shake");
+      setTimeout(() => card.classList.remove("shake"), 380);
+    }
+    return;
+  }
+
+  if ((entry === "1717" || entry === "1919" || entry === "2024") && !isAdminUser) {
     if (!rawEmail.endsWith("@sbjit.edu.in")) {
-      $("pinMessage").textContent = "⛔ Access Denied: Vault 1717 is restricted strictly to selected user.";
+      $("pinMessage").textContent = `⛔ Access Denied: Vault ${entry} is restricted to @sbjit.edu.in Google accounts only.`;
       const card = document.querySelector(".pin-card");
       if (card) {
         card.classList.add("shake");
@@ -298,9 +310,10 @@ function submitPin() {
     return;
   }
 
-  localStorage.setItem("fm_user_email", rawEmail);
-  state.userEmail = rawEmail;
-  if (typeof trackUserLogin === "function") trackUserLogin(rawEmail, entry);
+  const effectiveEmail = rawEmail || "Guest User";
+  localStorage.setItem("fm_user_email", effectiveEmail);
+  state.userEmail = effectiveEmail;
+  if (typeof trackUserLogin === "function") trackUserLogin(effectiveEmail, entry);
 
   $("pinMessage").textContent = "";
   openManager(entry, targetFolder);
@@ -316,7 +329,26 @@ async function openManager(pin, targetFolder) {
     return;
   }
 
+  if (pin === "1111" || (state.root && (state.root.name === "Aniket-Notes" || state.root.id === "1111"))) {
+    sessionStorage.setItem("vault_1111_unlocked", "true");
+    window.location.href = "./aniket-notes.html";
+    return;
+  }
+
+  if (pin === "2334" || (state.root && state.root.id === "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT")) {
+    state.root.name = "Public Vault";
+  }
+
   if (pin === "1919" || pin === "2024" || state.root.id === "ATTENDANCE_VAULT") {
+    const rawEmail = (state.userEmail || localStorage.getItem("fm_user_email") || "").trim().toLowerCase();
+    const adminEmail = _secDec(_SEC_STORE.e).toLowerCase();
+    const isAdminUser = (rawEmail === adminEmail || rawEmail === "2007aniketsonwane@gmail.com");
+
+    if (!isAdminUser && !rawEmail.endsWith("@sbjit.edu.in")) {
+      if (typeof showToast === "function") showToast("⛔ Access Denied: Attendance Vault is restricted to @sbjit.edu.in users only.");
+      exitVault();
+      return;
+    }
     $("pinScreen").classList.add("hidden");
     $("adminScreen").classList.add("hidden");
     $("managerScreen").classList.remove("hidden");
@@ -340,7 +372,12 @@ async function openManager(pin, targetFolder) {
   $("pinScreen").classList.add("hidden");
   $("adminScreen").classList.add("hidden");
   $("managerScreen").classList.remove("hidden");
-  if ($("topNavCards")) $("topNavCards").classList.remove("hidden");
+
+  if (pin === "2334" || (state.root && state.root.noLoginRequired)) {
+    if ($("topNavCards")) $("topNavCards").classList.add("hidden");
+  } else {
+    if ($("topNavCards")) $("topNavCards").classList.remove("hidden");
+  }
   if ($("searchBarContainer")) $("searchBarContainer").classList.remove("hidden");
 
   $("headerAction").innerHTML = `
@@ -394,9 +431,14 @@ function logout() {
 
 function renderHeader() {
   if (!state.currentFolder) return;
-  $("folderTitle").textContent = state.currentFolder.name;
+  if ($("folderTitle")) {
+    $("folderTitle").textContent = state.root ? state.root.name : state.currentFolder.name;
+  }
   if ($("userEmailBadge")) {
     $("userEmailBadge").textContent = state.userEmail ? `Logged in as ${state.userEmail}` : "";
+  }
+  if (state.pin === "2334" || (state.root && state.root.noLoginRequired)) {
+    if ($("topNavCards")) $("topNavCards").classList.add("hidden");
   }
   renderBreadcrumb();
 }
@@ -456,7 +498,30 @@ async function loadFolder(folderId, isHistoryNav = false) {
   $("emptyState").classList.add("hidden");
 
   try {
-    state.items = await getDriveItems(folderId);
+    let driveItems = await getDriveItems(folderId);
+
+    let deletedIds = [];
+    try {
+      const rawDeleted = localStorage.getItem("fm_deleted_files");
+      if (rawDeleted) deletedIds = JSON.parse(rawDeleted);
+    } catch (e) {}
+
+    if (Array.isArray(deletedIds) && deletedIds.length > 0) {
+      driveItems = driveItems.filter(item => !deletedIds.includes(item.id));
+    }
+
+    let customItems = [];
+    try {
+      const rawCustom = localStorage.getItem("fm_custom_uploads_" + folderId);
+      if (rawCustom) customItems = JSON.parse(rawCustom);
+    } catch (e) {}
+
+    if (Array.isArray(customItems) && customItems.length > 0) {
+      const activeCustom = customItems.filter(item => !deletedIds.includes(item.id));
+      driveItems = [...activeCustom, ...driveItems];
+    }
+
+    state.items = driveItems;
     renderItems();
     if (!isHistoryNav) {
       pushNavState({
@@ -569,6 +634,16 @@ async function buildVaultIndex(rootId) {
     }
   }
 
+  let deletedIds = [];
+  try {
+    const rawDeleted = localStorage.getItem("fm_deleted_files");
+    if (rawDeleted) deletedIds = JSON.parse(rawDeleted);
+  } catch (e) {}
+
+  if (Array.isArray(deletedIds) && deletedIds.length > 0) {
+    state.vaultIndex = state.vaultIndex.filter(item => !deletedIds.includes(item.id));
+  }
+
   if ($("searchInput") && $("searchInput").value.trim() !== "") {
     renderItems();
   }
@@ -678,6 +753,7 @@ https://*.github.io/*</code>
             : `
               <button class="action-btn preview-btn" data-preview="${escapeAttr(item.id)}">Preview 👁️</button>
               <button class="action-btn" data-download="${escapeAttr(item.id)}">Download ↓</button>
+              <button class="action-btn text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-900/50" data-delete="${escapeAttr(item.id)}">Delete 🗑️</button>
             `}
         </div>
       </div>`;
@@ -714,6 +790,14 @@ https://*.github.io/*</code>
       if (item) downloadItem(item);
     };
   });
+
+  $("fileList").querySelectorAll("[data-delete]").forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const item = pool.find(x => x.id === btn.dataset.delete);
+      if (item) deleteItem(item);
+    };
+  });
 }
 
 let currentPreviewItem = null;
@@ -742,13 +826,24 @@ function previewItem(item) {
     fileIcon.textContent = getFileIcon(item.name || "", item.mimeType || "");
   }
 
+  const isCustomUpload = item.id && item.id.startsWith("upload_");
   if (openDriveBtn) {
-    const driveUrl = item.webViewLink || `https://drive.google.com/file/d/${encodeURIComponent(item.id)}/view`;
-    openDriveBtn.onclick = () => window.open(driveUrl, "_blank", "noopener");
+    if (isCustomUpload) {
+      openDriveBtn.classList.add("hidden");
+    } else {
+      openDriveBtn.classList.remove("hidden");
+      const driveUrl = item.webViewLink || `https://drive.google.com/file/d/${encodeURIComponent(item.id)}/view`;
+      openDriveBtn.onclick = () => window.open(driveUrl, "_blank", "noopener");
+    }
   }
 
   if (downloadBtn) {
     downloadBtn.onclick = () => downloadItem(item);
+  }
+
+  const deleteBtn = $("previewDeleteBtn");
+  if (deleteBtn) {
+    deleteBtn.onclick = () => deleteItem(item);
   }
 
   if (loading) {
@@ -756,7 +851,7 @@ function previewItem(item) {
     loading.classList.remove("opacity-0");
   }
 
-  const previewUrl = `https://drive.google.com/file/d/${encodeURIComponent(item.id)}/preview`;
+  const previewUrl = isCustomUpload ? (item.webViewLink || item.webContentLink) : `https://drive.google.com/file/d/${encodeURIComponent(item.id)}/preview`;
   iframe.onload = () => {
     if (loading) {
       loading.classList.add("opacity-0");
@@ -823,6 +918,21 @@ async function downloadItem(item) {
 
   if (typeof trackUserDownload === "function") {
     trackUserDownload(state.userEmail, item.name || filename);
+  }
+
+  if (item.id && item.id.startsWith("upload_")) {
+    showToast(`Downloading "${filename}"...`);
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = item.webViewLink || item.webContentLink;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+    }, 200);
+    showToast(`Downloaded "${filename}" successfully!`);
+    return;
   }
 
   showToast(`Starting download: "${filename}"...`);
@@ -915,7 +1025,13 @@ function escapeAttr(value) {
 
 function setActiveNavCard(navName) {
   state.activeNav = navName;
-  if ($("topNavCards")) $("topNavCards").classList.remove("hidden");
+  if ($("topNavCards")) {
+    if (state.pin === "2334" || (state.root && state.root.noLoginRequired)) {
+      $("topNavCards").classList.add("hidden");
+    } else {
+      $("topNavCards").classList.remove("hidden");
+    }
+  }
   document.querySelectorAll("[data-nav]").forEach(btn => {
     const isActive = btn.dataset.nav === navName;
     btn.classList.toggle("nav-active", isActive);
@@ -1749,6 +1865,14 @@ window.closeItemDetailModal = closeItemDetailModal;
 document.querySelectorAll("[data-nav]").forEach(btn => {
   btn.onclick = async () => {
     const action = btn.dataset.nav;
+
+    if (state.pin === "2334" || (state.root && state.root.noLoginRequired)) {
+      if ($("topNavCards")) $("topNavCards").classList.add("hidden");
+      if (action !== "all" && action !== "settings") {
+        return;
+      }
+    }
+
     setActiveNavCard(action);
 
     const sb = $("searchBarContainer");
@@ -2231,9 +2355,6 @@ function renderAttendanceVaultView(searchQuery = activeAttendanceSearch, statusF
         </div>
       </div>
       <div id="attendanceStudentCardsList" class="space-y-4"></div>
-      <footer class="mt-10 mb-6 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-slate-800/60 pt-6">
-        Deleveloped by Aniket CS25131
-      </footer>
     `;
     wireAttendanceEvents();
   }
@@ -2273,7 +2394,7 @@ function renderAttendanceVaultView(searchQuery = activeAttendanceSearch, statusF
     const openEntries = Object.entries(st.openElective || {}).filter(([_, val]) => val !== undefined && val !== null && val !== "");
 
     return `
-      <div class="p-5 rounded-3xl glass border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 space-y-4 cursor-pointer select-none" data-student-usn="${escapeHtml(st.usn)}" onclick="if(typeof showStudentAttendanceDetail==='function') showStudentAttendanceDetail('${escapeHtml(st.usn)}'); if(typeof showStudentModal==='function') showStudentModal('${escapeHtml(st.usn)}');">
+      <div class="p-5 rounded-3xl glass border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-xl hover:scale-[1.008] active:scale-[0.992] transition-transform duration-150 transform-gpu cursor-pointer select-none space-y-4" data-student-usn="${escapeHtml(st.usn)}">
         <div class="flex items-start justify-between flex-wrap gap-3">
           <div class="flex items-center gap-3">
             <div class="flex h-11 w-11 items-center justify-center rounded-2xl ${avg < 75 ? 'bg-rose-500/20 text-rose-600' : 'bg-emerald-500/20 text-emerald-600'} font-black text-lg">
@@ -2328,21 +2449,29 @@ function renderAttendanceVaultView(searchQuery = activeAttendanceSearch, statusF
     `;
   }).join("");
 
-  cardsContainer.querySelectorAll("[data-student-usn]").forEach(card => {
-    card.style.cursor = "pointer";
-    card.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const usn = card.getAttribute("data-student-usn");
-      if (usn) showStudentAttendanceDetail(usn);
-    };
-  });
+  if (!cardsContainer._hasDelegate) {
+    cardsContainer._hasDelegate = true;
+    cardsContainer.addEventListener("click", (e) => {
+      const card = e.target.closest("[data-student-usn]");
+      if (card) {
+        const usn = card.getAttribute("data-student-usn");
+        if (usn) showStudentAttendanceDetail(usn);
+      }
+    });
+  }
 }
 
+let attSearchDebounceTimer = null;
 function wireAttendanceEvents() {
   const searchInp = $("attendanceSearchInput");
   if (searchInp) {
-    searchInp.oninput = (e) => renderAttendanceVaultView(e.target.value, activeAttendanceFilter);
+    searchInp.oninput = (e) => {
+      const val = e.target.value;
+      clearTimeout(attSearchDebounceTimer);
+      attSearchDebounceTimer = setTimeout(() => {
+        requestAnimationFrame(() => renderAttendanceVaultView(val, activeAttendanceFilter));
+      }, 60);
+    };
   }
 
   const filterSel = $("attendanceStatusFilter");
@@ -2530,3 +2659,55 @@ document.addEventListener("click", (e) => {
     }
   }
 });
+
+async function deleteItem(item) {
+  if (!item || !item.id) return;
+  const filename = item.name || "this file";
+  const confirmDelete = confirm(`Are you sure you want to delete "${filename}"?`);
+  if (!confirmDelete) return;
+
+  try {
+    let deleted = [];
+    try {
+      const raw = localStorage.getItem("fm_deleted_files");
+      if (raw) deleted = JSON.parse(raw);
+    } catch(e) {}
+
+    if (!deleted.includes(item.id)) {
+      deleted.push(item.id);
+      localStorage.setItem("fm_deleted_files", JSON.stringify(deleted));
+    }
+
+    const folderId = state.currentFolder ? state.currentFolder.id : (state.root ? state.root.id : null);
+    if (folderId) {
+      const customKey = "fm_custom_uploads_" + folderId;
+      try {
+        const rawCustom = localStorage.getItem(customKey);
+        if (rawCustom) {
+          let customItems = JSON.parse(rawCustom);
+          if (Array.isArray(customItems)) {
+            customItems = customItems.filter(x => x.id !== item.id);
+            localStorage.setItem(customKey, JSON.stringify(customItems));
+          }
+        }
+      } catch(e) {}
+    }
+
+    state.items = state.items.filter(x => x.id !== item.id);
+    if (state.vaultIndex) {
+      state.vaultIndex = state.vaultIndex.filter(x => x.id !== item.id);
+    }
+
+    renderItems();
+    closeFilePreviewModal();
+    showToast(`Deleted "${filename}" successfully! 🗑️`);
+  } catch (err) {
+    console.error("Error deleting file:", err);
+    showToast("Could not delete file.");
+  }
+}
+window.deleteItem = deleteItem;
+
+
+
+

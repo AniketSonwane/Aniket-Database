@@ -12,11 +12,18 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+let searchDebounceTimer = null;
 function initAttendanceEvents() {
   const searchInp = $("searchInput");
   if (searchInp) {
-    searchInp.oninput = e => renderAttendanceView(e.target.value, currentStatusFilter);
-    searchInp.onsearch = e => renderAttendanceView(e.target.value, currentStatusFilter);
+    const handleSearchInput = (val) => {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        requestAnimationFrame(() => renderAttendanceView(val, currentStatusFilter));
+      }, 60);
+    };
+    searchInp.oninput = e => handleSearchInput(e.target.value);
+    searchInp.onsearch = e => handleSearchInput(e.target.value);
   }
 
   const filterSel = $("statusFilter");
@@ -112,7 +119,7 @@ function renderAttendanceView(searchQuery = currentSearchQuery, statusFilter = c
     const openEntries = Object.entries(st.openElective || {}).filter(([_, val]) => val !== undefined && val !== null && val !== "");
 
     return `
-      <div class="p-5 rounded-3xl glass border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 space-y-4 cursor-pointer select-none" data-student-usn="${escapeHtml(st.usn)}">
+      <div class="p-5 rounded-3xl glass border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-xl hover:scale-[1.008] active:scale-[0.992] transition-transform duration-150 transform-gpu cursor-pointer select-none space-y-4" data-student-usn="${escapeHtml(st.usn)}">
         <div class="flex items-start justify-between flex-wrap gap-3">
           <div class="flex items-center gap-3">
             <div class="flex h-11 w-11 items-center justify-center rounded-2xl ${avg < 75 ? 'bg-rose-500/20 text-rose-600' : 'bg-emerald-500/20 text-emerald-600'} font-black text-lg">
@@ -167,15 +174,16 @@ function renderAttendanceView(searchQuery = currentSearchQuery, statusFilter = c
     `;
   }).join("");
 
-  container.querySelectorAll("[data-student-usn]").forEach(card => {
-    card.style.cursor = "pointer";
-    card.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const usn = card.getAttribute("data-student-usn");
-      if (usn) showStudentModal(usn);
-    };
-  });
+  if (!container._hasDelegate) {
+    container._hasDelegate = true;
+    container.addEventListener("click", (e) => {
+      const card = e.target.closest("[data-student-usn]");
+      if (card) {
+        const usn = card.getAttribute("data-student-usn");
+        if (usn) showStudentModal(usn);
+      }
+    });
+  }
 }
 
 function getAttendanceModalElement() {

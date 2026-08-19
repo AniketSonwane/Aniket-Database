@@ -18,7 +18,9 @@ const adminState = {
   logsPage: 1,
   pinConfig: {
     "1717": { id: _adminDec(_ADMIN_SEC.r), name: "Academics" },
-    "1919": { id: "ATTENDANCE_VAULT", name: "Student Attendance Vault" }
+    "1919": { id: "ATTENDANCE_VAULT", name: "Student Attendance Vault" },
+    "2334": { id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT", name: "Public Vault", noLoginRequired: true },
+    "1111": { id: _adminDec(_ADMIN_SEC.r), name: "Aniket-Notes", noLoginRequired: true }
   }
 };
 
@@ -63,6 +65,22 @@ function initAdminData() {
       };
       savePinConfig();
     }
+    if (!adminState.pinConfig["2334"] || adminState.pinConfig["2334"].name !== "Public Vault") {
+      adminState.pinConfig["2334"] = {
+        id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
+        name: "Public Vault",
+        noLoginRequired: true
+      };
+      savePinConfig();
+    }
+    if (!adminState.pinConfig["1111"] || adminState.pinConfig["1111"].name !== "Aniket-Notes") {
+      adminState.pinConfig["1111"] = {
+        id: defaultFolderId,
+        name: "Aniket-Notes",
+        noLoginRequired: true
+      };
+      savePinConfig();
+    }
   } catch (e) {
     console.warn("Error initializing admin storage:", e);
   }
@@ -77,8 +95,27 @@ function savePinConfig() {
   }
 }
 
+function isGuestOrAdminEmail(email, vaultOrPin) {
+  const e = String(email || "").trim().toLowerCase();
+  const adminEmail = (typeof _ADMIN_SEC !== "undefined" && _ADMIN_SEC.e ? _adminDec(_ADMIN_SEC.e) : "2007aniketsonwane@gmail.com").toLowerCase();
+  const v = String(vaultOrPin || "").trim().toLowerCase();
+
+  return (
+    !e ||
+    e.includes("guest") ||
+    e === "guest user" ||
+    e === adminEmail ||
+    e === "2007aniketsonwane@gmail.com" ||
+    v === "1358" ||
+    v === "2334" ||
+    v === "1111" ||
+    v.includes("public vault") ||
+    v.includes("aniket-notes")
+  );
+}
+
 function trackUserLogin(email, pinUsed) {
-  if (!email) return;
+  if (!email || isGuestOrAdminEmail(email, pinUsed)) return;
   initAdminData();
   const now = new Date().toISOString();
 
@@ -122,7 +159,7 @@ function trackUserLogin(email, pinUsed) {
 }
 
 function trackUserDownload(email, fileName) {
-  if (!email) return;
+  if (!email || isGuestOrAdminEmail(email, "")) return;
   initAdminData();
   const now = new Date().toISOString();
 
@@ -130,8 +167,10 @@ function trackUserDownload(email, fileName) {
     trackUserLogin(email, "unknown");
   }
 
-  adminState.userStats[email].downloads += 1;
-  localStorage.setItem("fm_user_stats", JSON.stringify(adminState.userStats));
+  if (adminState.userStats[email]) {
+    adminState.userStats[email].downloads += 1;
+    localStorage.setItem("fm_user_stats", JSON.stringify(adminState.userStats));
+  }
 
   if (typeof logSharedActivity === "function") {
     logSharedActivity({
@@ -151,24 +190,23 @@ function getParsedActivityLogs() {
   const isSharedConfigured = typeof sharedDataConfigured === "function" && sharedDataConfigured();
   let sheetLogs = [];
   try {
-    const raw = localStorage.getItem("fm_shared_activity_logs");
+    const raw = localStorage.getItem("fm_shared_activity_logs") || localStorage.getItem("fm_activity_logs");
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) sheetLogs = parsed;
     }
-  } catch(e) {}
+  } catch (e) {}
 
   const combined = [];
 
-  // Parse Google Sheet activity logs
   sheetLogs.forEach(entry => {
     if (!entry) return;
-    const time = entry.Timestamp || entry.timestamp || entry.time || entry["Login Time"] || "";
+    const time = entry["Timestamp"] || entry.timestamp || entry.time || new Date().toISOString();
     const email = entry["Login ID (Email)"] || entry.email || entry.loginId || entry.user || "";
     const vault = entry["Vault Name"] || entry.vault || entry.vaultName || "Vault";
     const item = entry["Action / Downloaded Item"] || entry.item || entry.action || entry.downloadItem || "Access Vault";
 
-    if (email) {
+    if (email && !isGuestOrAdminEmail(email, vault)) {
       combined.push({
         timestamp: time,
         email: String(email).trim(),
@@ -181,7 +219,7 @@ function getParsedActivityLogs() {
   // Only include local visitor logs if shared Google Sheets data is NOT configured
   if (!isSharedConfigured && adminState.visitorLogs && Array.isArray(adminState.visitorLogs)) {
     adminState.visitorLogs.forEach(log => {
-      if (!log || !log.email) return;
+      if (!log || !log.email || isGuestOrAdminEmail(log.email, log.pin)) return;
       combined.push({
         timestamp: log.timestamp || new Date(log.id || Date.now()).toISOString(),
         email: String(log.email).trim(),
@@ -228,6 +266,14 @@ function formatVaultDisplayName(vaultRaw) {
 
   if (str === "1919" || str === "2024" || str.toLowerCase().includes("attend")) {
     return "Attendance Vault";
+  }
+
+  if (str === "2334" || str.toLowerCase().includes("public vault") || str.toLowerCase().includes("public-folder") || str.toLowerCase().includes("folder vault")) {
+    return "Public Vault";
+  }
+
+  if (str === "1111" || str.toLowerCase().includes("aniket-notes") || str.toLowerCase().includes("notes")) {
+    return "Aniket-Notes";
   }
 
   if (/^\d{4}\s*-\s*(.+)/.test(str)) {
@@ -394,16 +440,14 @@ function renderPinsList() {
       </div>
       <div class="flex items-center gap-2">
         ${!p.isAdmin ? `
-          <button type="button" class="text-xs font-bold px-3 py-1.5 rounded-xl border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 transition" onclick="openAdminPinModal('${p.pin}')">
-            Edit ⚙️ / Manage
-          </button>
+          ${(p.pin !== '1919' && p.pin !== '2334' && p.pin !== '1111' && p.id !== 'ATTENDANCE_VAULT') ? `
+            <button type="button" class="text-xs font-bold px-3 py-1.5 rounded-xl border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 transition" onclick="openAdminPinModal('${p.pin}')">
+              Edit ⚙️ / Manage
+            </button>
+          ` : ''}
           <button type="button" class="text-xs font-bold px-3 py-1.5 rounded-xl border transition ${p.isLocked ? 'border-amber-400 text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300' : 'border-slate-200 text-slate-700 bg-slate-100 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}" onclick="togglePinLock('${p.pin}')">
             ${p.isLocked ? '🔓 Unlock' : '🔒 Lock'}
           </button>
-          ${p.pin !== '1717' ? `
-            <button type="button" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-900/40 dark:text-rose-300 transition" onclick="removePinMapping('${p.pin}')">
-              Remove
-            </button>` : ''}
         ` : `<span class="text-xs font-bold text-slate-400">System Protected</span>`}
       </div>
     </div>
@@ -980,30 +1024,57 @@ function closeVaultStatsModal() {
   if (modal) modal.classList.add("hidden");
 }
 
+function toggleVaultUserList(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.toggle("hidden");
+  }
+}
+window.toggleVaultUserList = toggleVaultUserList;
+
 function renderVaultStatsTable() {
   const container = document.getElementById("vaultStatsContent");
   if (!container) return;
 
   const logs = getParsedActivityLogs();
-  const vaultCounts = new Map();
+  const vaultMap = new Map();
   let totalVisits = 0;
 
   logs.forEach(l => {
-    if (!l) return;
+    if (!l || !l.email) return;
     const isVisit = (l.item || "").toLowerCase().includes("login") || (l.item || "").toLowerCase().includes("access");
     if (!isVisit) return;
+
     totalVisits += 1;
     const vName = formatVaultDisplayName(l.vault);
-    vaultCounts.set(vName, (vaultCounts.get(vName) || 0) + 1);
+    if (!vaultMap.has(vName)) {
+      vaultMap.set(vName, { count: 0, userMap: new Map() });
+    }
+    const vEntry = vaultMap.get(vName);
+    vEntry.count += 1;
+
+    const emailKey = l.email.toLowerCase().trim();
+    if (!vEntry.userMap.has(emailKey)) {
+      vEntry.userMap.set(emailKey, {
+        email: l.email.trim(),
+        count: 0,
+        lastSeen: l.timestamp
+      });
+    }
+    const uEntry = vEntry.userMap.get(emailKey);
+    uEntry.count += 1;
+    if (new Date(l.timestamp) > new Date(uEntry.lastSeen || 0)) {
+      uEntry.lastSeen = l.timestamp;
+    }
   });
 
   if (totalVisits === 0) totalVisits = logs.length || 1;
 
-  const sortedVaults = Array.from(vaultCounts.entries()).sort((a, b) => b[1] - a[1]);
+  const sortedVaults = Array.from(vaultMap.entries()).sort((a, b) => b[1].count - a[1].count);
 
   const subtitle = document.getElementById("vaultStatsModalSubtitle");
   if (subtitle) {
-    subtitle.textContent = `Total Visits Recorded: ${totalVisits.toLocaleString()}`;
+    subtitle.textContent = `Total Visits Recorded: ${totalVisits.toLocaleString()} • Click any vault card to view accessed user emails`;
   }
 
   if (sortedVaults.length === 0) {
@@ -1014,14 +1085,23 @@ function renderVaultStatsTable() {
     return;
   }
 
-  container.innerHTML = sortedVaults.map(([vName, count]) => {
+  container.innerHTML = sortedVaults.map(([vName, vData], idx) => {
+    const count = vData.count;
     const pct = Math.round((count / totalVisits) * 100);
+    const usersList = Array.from(vData.userMap.values()).sort((a, b) => b.count - a.count);
+    const uniqueUserCount = usersList.length;
+
+    const userListId = `vaultUserList_${idx}`;
+
     return `
-      <div class="p-4 rounded-2xl glass border border-slate-200 dark:border-slate-800 space-y-2">
+      <div class="p-4 rounded-2xl glass border border-slate-200 dark:border-slate-800 space-y-2 hover:border-purple-400/80 transition-all cursor-pointer group select-none" onclick="toggleVaultUserList('${userListId}')">
         <div class="flex items-center justify-between text-xs font-extrabold text-slate-900 dark:text-slate-100">
           <div class="flex items-center gap-2">
             <span class="px-2.5 py-1 rounded-lg font-mono text-[11px] font-black bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
               ${escapeAdminHtml(vName)}
+            </span>
+            <span class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 opacity-80 group-hover:opacity-100 transition">
+              👥 ${uniqueUserCount} Email${uniqueUserCount > 1 ? 's' : ''} (Click to toggle) ▾
             </span>
           </div>
           <div class="flex items-center gap-3">
@@ -1029,8 +1109,44 @@ function renderVaultStatsTable() {
             <span class="text-[11px] font-mono text-slate-500">${pct}%</span>
           </div>
         </div>
+
         <div class="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
           <div class="bg-gradient-to-r from-purple-500 to-indigo-600 h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+        </div>
+
+        <div id="${userListId}" class="hidden mt-3 pt-3 border-t border-slate-200/80 dark:border-slate-800/80 space-y-2 cursor-default" onclick="event.stopPropagation()">
+          <div class="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 mb-1">
+            Accounts accessing ${escapeAdminHtml(vName)}:
+          </div>
+          ${usersList.map(u => {
+            let formattedTime = u.lastSeen;
+            try {
+              const dt = new Date(u.lastSeen);
+              if (!isNaN(dt.getTime())) {
+                formattedTime = dt.toLocaleString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                });
+              }
+            } catch(e) {}
+
+            return `
+              <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-100/90 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 text-xs">
+                <div class="flex items-center gap-2">
+                  <span class="text-indigo-500 font-black">✉️</span>
+                  <div>
+                    <span class="font-extrabold text-slate-900 dark:text-slate-100">${escapeAdminHtml(u.email)}</span>
+                    <span class="text-[10px] text-slate-400 block mt-0.5">Last Visit: ${escapeAdminHtml(formattedTime)}</span>
+                  </div>
+                </div>
+                <span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 font-black text-[11px] border border-purple-200 dark:border-purple-800">
+                  ${u.count.toLocaleString()} visit${u.count > 1 ? 's' : ''}
+                </span>
+              </div>`;
+          }).join("")}
         </div>
       </div>`;
   }).join("");

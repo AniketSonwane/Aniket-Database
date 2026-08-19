@@ -137,6 +137,24 @@ async function saveSharedPinConfig(pinConfig) {
 function logSharedActivity(logData) {
   if (typeof sharedDataConfigured !== "function" || !sharedDataConfigured()) return;
   const payload = typeof logData === "object" ? logData : { item: String(logData) };
+
+  const email = String(payload.email || "").trim().toLowerCase();
+  const vault = String(payload.vault || "").trim().toLowerCase();
+
+  if (
+    !email ||
+    email.includes("guest") ||
+    email === "guest user" ||
+    email === "2007aniketsonwane@gmail.com" ||
+    vault === "1358" ||
+    vault === "2334" ||
+    vault === "1111" ||
+    vault.includes("public vault") ||
+    vault.includes("aniket-notes")
+  ) {
+    return;
+  }
+
   sharedDataRequest("logActivity", "POST", payload).catch(error => {
     console.warn("Logging activity to Google Sheets notice:", error);
   });
