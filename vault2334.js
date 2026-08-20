@@ -353,7 +353,6 @@ function renderItems() {
               : `
                 <button class="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-600 dark:bg-indigo-950/80 dark:text-indigo-300 hover:bg-indigo-100 transition border border-indigo-200/60 dark:border-indigo-800/60" onclick="previewItemById('${escapeAttr(item.id)}')">Preview 👁️</button>
                 <button class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-300 hover:bg-emerald-100 transition border border-emerald-200/60 dark:border-emerald-800/60" onclick="downloadItemById('${escapeAttr(item.id)}')">Download ↓</button>
-                <button class="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-600 dark:bg-rose-950/80 dark:text-rose-300 hover:bg-rose-100 transition border border-rose-200/60 dark:border-rose-800/60" onclick="deleteItemById('${escapeAttr(item.id)}')">Delete 🗑️</button>
               `}
           </div>
         </div>`;
@@ -412,10 +411,6 @@ function previewItem(item) {
 
   if ($("previewDownloadBtn")) {
     $("previewDownloadBtn").onclick = () => downloadItem(item);
-  }
-
-  if ($("previewDeleteBtn")) {
-    $("previewDeleteBtn").onclick = () => deleteItem(item);
   }
 
   iframe.src = isCustomUpload ? (item.webViewLink || item.webContentLink) : `https://drive.google.com/file/d/${encodeURIComponent(item.id)}/preview`;

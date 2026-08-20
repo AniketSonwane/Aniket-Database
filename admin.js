@@ -17,7 +17,7 @@ const adminState = {
   blockedEmails: [],
   logsPage: 1,
   pinConfig: {
-    "1717": { id: _adminDec(_ADMIN_SEC.r), name: "Academics" },
+    "1717": { id: _adminDec(_ADMIN_SEC.r), name: "Academics", defaultSemester: "3" },
     "1919": { id: "ATTENDANCE_VAULT", name: "Student Attendance Vault" },
     "2334": { id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT", name: "Public Vault", noLoginRequired: true },
     "1111": { id: _adminDec(_ADMIN_SEC.r), name: "Aniket-Notes", noLoginRequired: true }
@@ -54,7 +54,8 @@ function initAdminData() {
     if (!adminState.pinConfig["1717"]) {
       adminState.pinConfig["1717"] = {
         id: defaultFolderId,
-        name: "Academics"
+        name: "Academics",
+        defaultSemester: "3"
       };
       savePinConfig();
     }
@@ -478,7 +479,7 @@ function togglePinLock(pin) {
 }
 
 let activeAdminModalTab = "security";
-let adminTTFilterSem = "1";
+let adminTTFilterSem = "3";
 let adminTTFilterDay = (typeof getCurrentIndianDay === "function") ? getCurrentIndianDay() : "Monday";
 
 let openedFromAvailablePinsModal = false;

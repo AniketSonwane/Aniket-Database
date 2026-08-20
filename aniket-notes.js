@@ -161,8 +161,8 @@ function renderAniketNotesHome() {
   subjects.forEach(code => {
     const sub = NOTES_DATA[code];
     html += `
-      <div onclick="openSubject('${code}')" class="group relative overflow-hidden rounded-2xl p-4 sm:p-5 glass border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 hover:shadow-xl hover:shadow-indigo-500/10 cursor-pointer transition-all duration-300 hover:-translate-y-1">
-        <div class="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${sub.color} text-white text-xl shadow-md group-hover:scale-110 transition-transform">
+      <div onclick="openSubject('${code}')" class="group relative overflow-hidden rounded-2xl p-4 sm:p-5 glass border border-slate-200 dark:border-slate-800 hover:border-indigo-500/60 hover:shadow-2xl hover:shadow-indigo-500/15 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:scale-[1.025] transform-gpu">
+        <div class="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${sub.color} text-white text-xl shadow-md group-hover:scale-115 transition-transform duration-300">
           ${sub.icon}
         </div>
         <h4 class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
@@ -231,10 +231,10 @@ function openSubject(code) {
 
     cat.topics.forEach(topic => {
       html += `
-        <div onclick="previewTopic('${topic.id}', '${escapeAttr(topic.name)}', '${topic.localUrl}')" class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 hover:border-indigo-500/50 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/30 cursor-pointer transition group">
+        <div onclick="previewTopic('${topic.id}', '${escapeAttr(topic.name)}', '${topic.localUrl}')" class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 hover:border-indigo-500/60 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/30 hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-lg cursor-pointer transition-all duration-200 transform-gpu group">
           <div class="flex items-start justify-between">
             <div class="flex items-center gap-2">
-              <span class="text-lg">💻</span>
+              <span class="text-lg group-hover:scale-110 transition-transform">💻</span>
               <h5 class="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                 ${topic.name}
               </h5>

@@ -20,7 +20,7 @@ function initAttendanceEvents() {
       clearTimeout(searchDebounceTimer);
       searchDebounceTimer = setTimeout(() => {
         requestAnimationFrame(() => renderAttendanceView(val, currentStatusFilter));
-      }, 60);
+      }, 30);
     };
     searchInp.oninput = e => handleSearchInput(e.target.value);
     searchInp.onsearch = e => handleSearchInput(e.target.value);
@@ -35,14 +35,16 @@ function initAttendanceEvents() {
   if (themeBtn) {
     themeBtn.onclick = () => {
       const isDark = document.documentElement.classList.contains("dark");
+      const moonIcon = `<div class="theme-icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg></div>`;
+      const sunIcon = `<div class="theme-icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg></div>`;
       if (isDark) {
         document.documentElement.classList.remove("dark");
         document.documentElement.classList.add("light");
-        themeBtn.textContent = "☀️";
+        themeBtn.innerHTML = sunIcon;
       } else {
         document.documentElement.classList.remove("light");
         document.documentElement.classList.add("dark");
-        themeBtn.textContent = "🌙";
+        themeBtn.innerHTML = moonIcon;
       }
     };
   }
@@ -62,19 +64,6 @@ function renderAttendanceView(searchQuery = currentSearchQuery, statusFilter = c
   const attendanceData = (typeof getStoredAttendance === "function") ? getStoredAttendance() : [];
   const query = searchQuery.toLowerCase().trim();
 
-  let filtered = attendanceData.filter(student => {
-    if (!student) return false;
-    const usn = (student.usn || "").toLowerCase();
-    const name = (student.name || "").toLowerCase();
-    return usn.includes(query) || name.includes(query);
-  });
-
-  if (statusFilter === "low") {
-    filtered = filtered.filter(s => Number(s.average || 0) < 75);
-  } else if (statusFilter === "good") {
-    filtered = filtered.filter(s => Number(s.average || 0) >= 75);
-  }
-
   const totalStudents = attendanceData.length;
   const avgAttendance = totalStudents > 0
     ? (attendanceData.reduce((acc, s) => acc + Number(s.average || 0), 0) / totalStudents).toFixed(1)
@@ -92,18 +81,56 @@ function renderAttendanceView(searchQuery = currentSearchQuery, statusFilter = c
   const container = $("studentContainer");
   if (!container) return;
 
-  if (filtered.length === 0) {
-    container.innerHTML = `
-      <div class="p-10 text-center glass rounded-3xl">
+  // FAST PATH: Toggle visibility on existing DOM cards for 60fps instant search
+  const existingCards = container.querySelectorAll("[data-student-usn]");
+  if (existingCards.length === attendanceData.length && existingCards.length > 0) {
+    let matchCount = 0;
+    existingCards.forEach(card => {
+      const usn = (card.getAttribute("data-student-usn") || "").toLowerCase();
+      const name = (card.getAttribute("data-student-name") || "").toLowerCase();
+      const avg = Number(card.getAttribute("data-student-avg") || 0);
+
+      const matchesQuery = !query || usn.includes(query) || name.includes(query);
+      let matchesStatus = true;
+      if (statusFilter === "low") matchesStatus = avg < 75;
+      else if (statusFilter === "good") matchesStatus = avg >= 75;
+
+      const isVisible = matchesQuery && matchesStatus;
+      if (isVisible) matchCount++;
+      card.style.display = isVisible ? "block" : "none";
+    });
+
+    let noMatchEl = $("noMatchMsg");
+    if (matchCount === 0) {
+      if (!noMatchEl) {
+        noMatchEl = document.createElement("div");
+        noMatchEl.id = "noMatchMsg";
+        noMatchEl.className = "p-10 text-center glass rounded-3xl";
+        container.appendChild(noMatchEl);
+      }
+      noMatchEl.style.display = "block";
+      noMatchEl.innerHTML = `
         <div class="text-3xl mb-2">🔍</div>
         <p class="text-sm font-extrabold text-slate-700 dark:text-slate-300">No student attendance records match "${escapeHtml(searchQuery)}".</p>
-        <p class="mt-1 text-xs text-slate-400">Try searching by another USN or Name.</p>
-      </div>`;
+        <p class="mt-1 text-xs text-slate-400">Try searching by another USN or Name.</p>`;
+    } else if (noMatchEl) {
+      noMatchEl.style.display = "none";
+    }
     return;
   }
 
-  container.innerHTML = filtered.map(st => {
+  // SLOW PATH: First render all student cards with metadata attributes
+  container.innerHTML = attendanceData.map(st => {
     const avg = Number(st.average || 0);
+    const usnLower = (st.usn || "").toLowerCase();
+    const nameLower = (st.name || "").toLowerCase();
+
+    const matchesQuery = !query || usnLower.includes(query) || nameLower.includes(query);
+    let matchesStatus = true;
+    if (statusFilter === "low") matchesStatus = avg < 75;
+    else if (statusFilter === "good") matchesStatus = avg >= 75;
+    const isVisible = matchesQuery && matchesStatus;
+
     let badgeBg = "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800";
     let statusLabel = "Eligible";
     if (avg < 75) {
@@ -119,7 +146,11 @@ function renderAttendanceView(searchQuery = currentSearchQuery, statusFilter = c
     const openEntries = Object.entries(st.openElective || {}).filter(([_, val]) => val !== undefined && val !== null && val !== "");
 
     return `
-      <div class="p-5 rounded-3xl glass border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-xl hover:scale-[1.008] active:scale-[0.992] transition-transform duration-150 transform-gpu cursor-pointer select-none space-y-4" data-student-usn="${escapeHtml(st.usn)}">
+      <div class="student-card p-5 rounded-3xl glass border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-2xl hover:scale-[1.015] hover:-translate-y-1 active:scale-[0.99] transition-all duration-300 transform-gpu cursor-pointer select-none space-y-4"
+        style="display: ${isVisible ? 'block' : 'none'};"
+        data-student-usn="${escapeHtml(st.usn)}"
+        data-student-name="${escapeHtml(st.name)}"
+        data-student-avg="${avg}">
         <div class="flex items-start justify-between flex-wrap gap-3">
           <div class="flex items-center gap-3">
             <div class="flex h-11 w-11 items-center justify-center rounded-2xl ${avg < 75 ? 'bg-rose-500/20 text-rose-600' : 'bg-emerald-500/20 text-emerald-600'} font-black text-lg">
@@ -191,10 +222,10 @@ function getAttendanceModalElement() {
   if (!el) {
     el = document.createElement("div");
     el.id = "studentModal";
-    el.className = "hidden fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md cursor-pointer";
+    el.className = "hidden fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md cursor-pointer modal-backdrop-animate";
     el.onclick = function(e) { if(e.target === this) closeStudentModal(); };
     el.innerHTML = `
-      <div onclick="event.stopPropagation()" class="glass w-full max-w-2xl max-h-[88vh] rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900 flex flex-col overflow-hidden relative cursor-default">
+      <div onclick="event.stopPropagation()" class="glass modal-card-animate w-full max-w-2xl max-h-[88vh] rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900 flex flex-col overflow-hidden relative cursor-default">
         <div class="mb-4 flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
           <div class="flex items-center gap-3">
             <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-sm">
@@ -222,6 +253,13 @@ function showStudentModal(usn) {
     const modal = getAttendanceModalElement();
     if (modal) {
       modal.classList.remove("hidden");
+      modal.classList.add("modal-backdrop-animate");
+      const cardEl = modal.querySelector(".glass");
+      if (cardEl) {
+        cardEl.classList.remove("modal-card-animate");
+        void cardEl.offsetWidth; // trigger reflow
+        cardEl.classList.add("modal-card-animate");
+      }
       modal.removeAttribute("hidden");
       modal.setAttribute("style", "display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); justify-content: center; align-items: center; pointer-events: auto !important;");
     }
@@ -284,7 +322,7 @@ function showStudentModal(usn) {
           </div>
         </div>
         <div class="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-          <div class="h-full rounded-full transition-all duration-500 ${avg < 75 ? 'bg-gradient-to-r from-rose-500 to-amber-500' : 'bg-gradient-to-r from-emerald-500 to-teal-600'}" style="width: ${Math.min(avg, 100)}%"></div>
+          <div class="modal-progress-bar h-full rounded-full transition-all duration-700 ease-out ${avg < 75 ? 'bg-gradient-to-r from-rose-500 to-amber-500' : 'bg-gradient-to-r from-emerald-500 to-teal-600'}" style="width: 0%;" data-target-width="${Math.min(avg, 100)}%"></div>
         </div>
       </div>
 
@@ -298,7 +336,7 @@ function showStudentModal(usn) {
                 <span class="${Number(val) < 75 ? 'text-rose-600 font-black' : 'text-slate-900 dark:text-slate-100'}">${val}%</span>
               </div>
               <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                <div class="h-full rounded-full ${Number(val) < 75 ? 'bg-rose-500' : 'bg-indigo-600'}" style="width: ${Math.min(Number(val), 100)}%"></div>
+                <div class="modal-progress-bar h-full rounded-full transition-all duration-700 ease-out ${Number(val) < 75 ? 'bg-rose-500' : 'bg-indigo-600'}" style="width: 0%;" data-target-width="${Math.min(Number(val), 100)}%"></div>
               </div>
             </div>
           `).join("")}
@@ -316,7 +354,7 @@ function showStudentModal(usn) {
                   <span class="${Number(val) < 75 ? 'text-rose-600 font-black' : 'text-amber-900 dark:text-amber-100'}">${val}%</span>
                 </div>
                 <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div class="h-full rounded-full ${Number(val) < 75 ? 'bg-rose-500' : 'bg-amber-500'}" style="width: ${Math.min(Number(val), 100)}%"></div>
+                  <div class="modal-progress-bar h-full rounded-full transition-all duration-700 ease-out ${Number(val) < 75 ? 'bg-rose-500' : 'bg-amber-500'}" style="width: 0%;" data-target-width="${Math.min(Number(val), 100)}%"></div>
                 </div>
               </div>
             `).join("")}
@@ -335,7 +373,7 @@ function showStudentModal(usn) {
                   <span class="${Number(val) < 75 ? 'text-rose-600 font-black' : 'text-purple-900 dark:text-purple-100'}">${val}%</span>
                 </div>
                 <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div class="h-full rounded-full ${Number(val) < 75 ? 'bg-rose-500' : 'bg-purple-500'}" style="width: ${Math.min(Number(val), 100)}%"></div>
+                  <div class="modal-progress-bar h-full rounded-full transition-all duration-700 ease-out ${Number(val) < 75 ? 'bg-rose-500' : 'bg-purple-500'}" style="width: 0%;" data-target-width="${Math.min(Number(val), 100)}%"></div>
                 </div>
               </div>
             `).join("")}
@@ -343,6 +381,17 @@ function showStudentModal(usn) {
         </div>
       ` : ''}
     `;
+
+    // Smoothly animate progress bars fill after modal opens
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        contentEl.querySelectorAll(".modal-progress-bar").forEach(bar => {
+          const targetWidth = bar.getAttribute("data-target-width");
+          if (targetWidth) bar.style.width = targetWidth;
+        });
+      }, 50);
+    });
+
   } catch (err) {
     console.error("Error showing student modal:", err);
   }

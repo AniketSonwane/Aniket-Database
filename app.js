@@ -19,7 +19,8 @@ const DEFAULT_CONFIG = {
   pinFolders: {
     "1717": {
       id: _secDec(_SEC_STORE.r),
-      name: "Academics"
+      name: "Academics",
+      defaultSemester: "3"
     },
     "1919": {
       id: "ATTENDANCE_VAULT",
@@ -364,10 +365,11 @@ async function openManager(pin, targetFolder) {
     return;
   }
 
-  if ($("searchInput")) $("searchInput").value = "";
-  state.currentFolder = state.root;
-  state.breadcrumb = [{ id: state.root.id, name: state.root.name, root: true }];
-  state.vaultIndex = [];
+  if (pin === "1717" || (state.root && state.root.defaultSemester)) {
+    const defaultSem = (state.root && state.root.defaultSemester) ? String(state.root.defaultSemester) : "3";
+    activeTTState.sem = defaultSem;
+    activeExamsSem = defaultSem;
+  }
 
   $("pinScreen").classList.add("hidden");
   $("adminScreen").classList.add("hidden");
@@ -753,7 +755,6 @@ https://*.github.io/*</code>
             : `
               <button class="action-btn preview-btn" data-preview="${escapeAttr(item.id)}">Preview 👁️</button>
               <button class="action-btn" data-download="${escapeAttr(item.id)}">Download ↓</button>
-              <button class="action-btn text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-900/50" data-delete="${escapeAttr(item.id)}">Delete 🗑️</button>
             `}
         </div>
       </div>`;
@@ -788,14 +789,6 @@ https://*.github.io/*</code>
       e.stopPropagation();
       const item = pool.find(x => x.id === btn.dataset.download);
       if (item) downloadItem(item);
-    };
-  });
-
-  $("fileList").querySelectorAll("[data-delete]").forEach(btn => {
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      const item = pool.find(x => x.id === btn.dataset.delete);
-      if (item) deleteItem(item);
     };
   });
 }
@@ -839,11 +832,6 @@ function previewItem(item) {
 
   if (downloadBtn) {
     downloadBtn.onclick = () => downloadItem(item);
-  }
-
-  const deleteBtn = $("previewDeleteBtn");
-  if (deleteBtn) {
-    deleteBtn.onclick = () => deleteItem(item);
   }
 
   if (loading) {
@@ -1338,7 +1326,7 @@ function saveStoredExams(exams) {
   return true;
 }
 
-let activeExamsSem = "all";
+let activeExamsSem = "3";
 
 function renderExamsView(semFilter = activeExamsSem, skipSync = false, isHistoryNav = false) {
   activeExamsSem = semFilter;
@@ -1514,7 +1502,7 @@ function saveStoredTimetable(tt) {
   return true;
 }
 
-let activeTTState = { sem: "1", day: getCurrentIndianDay() };
+let activeTTState = { sem: "3", day: getCurrentIndianDay() };
 
 function renderTimetableView(sem = activeTTState.sem, day = activeTTState.day, skipSync = false, isHistoryNav = false) {
   activeTTState.sem = String(sem);
@@ -2367,18 +2355,55 @@ function renderAttendanceVaultView(searchQuery = activeAttendanceSearch, statusF
   const cardsContainer = $("attendanceStudentCardsList");
   if (!cardsContainer) return;
 
-  if (filtered.length === 0) {
-    cardsContainer.innerHTML = `
-      <div class="p-10 text-center glass rounded-3xl">
+  // FAST PATH: Toggle visibility on pre-existing DOM cards for 60fps instant search
+  const existingCards = cardsContainer.querySelectorAll("[data-student-usn]");
+  if (existingCards.length === attendanceData.length && existingCards.length > 0) {
+    let matchCount = 0;
+    existingCards.forEach(card => {
+      const usn = (card.getAttribute("data-student-usn") || "").toLowerCase();
+      const name = (card.getAttribute("data-student-name") || "").toLowerCase();
+      const avg = Number(card.getAttribute("data-student-avg") || 0);
+
+      const matchesQuery = !query || usn.includes(query) || name.includes(query);
+      let matchesStatus = true;
+      if (statusFilter === "low") matchesStatus = avg < 75;
+      else if (statusFilter === "good") matchesStatus = avg >= 75;
+
+      const isVisible = matchesQuery && matchesStatus;
+      if (isVisible) matchCount++;
+      card.style.display = isVisible ? "block" : "none";
+    });
+
+    let noMatchEl = $("attNoMatchMsg");
+    if (matchCount === 0) {
+      if (!noMatchEl) {
+        noMatchEl = document.createElement("div");
+        noMatchEl.id = "attNoMatchMsg";
+        noMatchEl.className = "p-10 text-center glass rounded-3xl";
+        cardsContainer.appendChild(noMatchEl);
+      }
+      noMatchEl.style.display = "block";
+      noMatchEl.innerHTML = `
         <div class="text-3xl mb-2">🔍</div>
         <p class="text-sm font-extrabold text-slate-700 dark:text-slate-300">No student attendance records match "${escapeHtml(searchQuery)}".</p>
-        <p class="mt-1 text-xs text-slate-400">Try searching with another USN or Name.</p>
-      </div>`;
+        <p class="mt-1 text-xs text-slate-400">Try searching with another USN or Name.</p>`;
+    } else if (noMatchEl) {
+      noMatchEl.style.display = "none";
+    }
     return;
   }
 
-  cardsContainer.innerHTML = filtered.map(st => {
+  cardsContainer.innerHTML = attendanceData.map(st => {
     const avg = Number(st.average || 0);
+    const usnLower = (st.usn || "").toLowerCase();
+    const nameLower = (st.name || "").toLowerCase();
+
+    const matchesQuery = !query || usnLower.includes(query) || nameLower.includes(query);
+    let matchesStatus = true;
+    if (statusFilter === "low") matchesStatus = avg < 75;
+    else if (statusFilter === "good") matchesStatus = avg >= 75;
+    const isVisible = matchesQuery && matchesStatus;
+
     let badgeBg = "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800";
     let statusLabel = "Eligible";
     if (avg < 75) {
@@ -2394,7 +2419,11 @@ function renderAttendanceVaultView(searchQuery = activeAttendanceSearch, statusF
     const openEntries = Object.entries(st.openElective || {}).filter(([_, val]) => val !== undefined && val !== null && val !== "");
 
     return `
-      <div class="p-5 rounded-3xl glass border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-xl hover:scale-[1.008] active:scale-[0.992] transition-transform duration-150 transform-gpu cursor-pointer select-none space-y-4" data-student-usn="${escapeHtml(st.usn)}">
+      <div class="student-card p-5 rounded-3xl glass border border-slate-200/80 dark:border-slate-800/80 shadow-md hover:shadow-2xl hover:scale-[1.015] hover:-translate-y-1 active:scale-[0.99] transition-all duration-300 transform-gpu cursor-pointer select-none space-y-4"
+        style="display: ${isVisible ? 'block' : 'none'};"
+        data-student-usn="${escapeHtml(st.usn)}"
+        data-student-name="${escapeHtml(st.name)}"
+        data-student-avg="${avg}">
         <div class="flex items-start justify-between flex-wrap gap-3">
           <div class="flex items-center gap-3">
             <div class="flex h-11 w-11 items-center justify-center rounded-2xl ${avg < 75 ? 'bg-rose-500/20 text-rose-600' : 'bg-emerald-500/20 text-emerald-600'} font-black text-lg">
