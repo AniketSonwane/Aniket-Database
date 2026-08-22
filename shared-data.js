@@ -134,12 +134,15 @@ async function saveSharedPinConfig(pinConfig) {
   }
 }
 
+const lastLoggedPayloads = {};
+
 function logSharedActivity(logData) {
   if (typeof sharedDataConfigured !== "function" || !sharedDataConfigured()) return;
   const payload = typeof logData === "object" ? logData : { item: String(logData) };
 
   const email = String(payload.email || "").trim().toLowerCase();
   const vault = String(payload.vault || "").trim().toLowerCase();
+  const item = String(payload.item || "").trim().toLowerCase();
 
   if (
     !email ||
@@ -154,6 +157,13 @@ function logSharedActivity(logData) {
   ) {
     return;
   }
+
+  const payloadKey = `${email}_${vault}_${item}`;
+  const nowMs = Date.now();
+  if (lastLoggedPayloads[payloadKey] && (nowMs - lastLoggedPayloads[payloadKey] < 10000)) {
+    return;
+  }
+  lastLoggedPayloads[payloadKey] = nowMs;
 
   sharedDataRequest("logActivity", "POST", payload).catch(error => {
     console.warn("Logging activity to Google Sheets notice:", error);

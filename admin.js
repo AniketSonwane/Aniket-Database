@@ -20,6 +20,7 @@ const adminState = {
     "1717": { id: _adminDec(_ADMIN_SEC.r), name: "Academics", defaultSemester: "3" },
     "1919": { id: "ATTENDANCE_VAULT", name: "Student Attendance Vault" },
     "2334": { id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT", name: "Public Vault", noLoginRequired: true },
+    "3333": { id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT", name: "Class Upload Folder", noLoginRequired: false },
     "1111": { id: _adminDec(_ADMIN_SEC.r), name: "Aniket-Notes", noLoginRequired: true }
   }
 };
@@ -82,6 +83,14 @@ function initAdminData() {
       };
       savePinConfig();
     }
+    if (!adminState.pinConfig["3333"] || adminState.pinConfig["3333"].name !== "Class Upload Folder") {
+      adminState.pinConfig["3333"] = {
+        id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
+        name: "Class Upload Folder",
+        noLoginRequired: false
+      };
+      savePinConfig();
+    }
   } catch (e) {
     console.warn("Error initializing admin storage:", e);
   }
@@ -115,8 +124,20 @@ function isGuestOrAdminEmail(email, vaultOrPin) {
   );
 }
 
+const lastUserLoginTimes = {};
+
 function trackUserLogin(email, pinUsed) {
   if (!email || isGuestOrAdminEmail(email, pinUsed)) return;
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanPin = String(pinUsed || "1717").trim();
+  const cooldownKey = `${cleanEmail}_${cleanPin}`;
+  const nowMs = Date.now();
+
+  if (lastUserLoginTimes[cooldownKey] && (nowMs - lastUserLoginTimes[cooldownKey] < 15000)) {
+    return;
+  }
+  lastUserLoginTimes[cooldownKey] = nowMs;
+
   initAdminData();
   const now = new Date().toISOString();
 
@@ -241,17 +262,151 @@ function renderAdminDashboard() {
   const uniqueUsers = new Set(logs.map(l => l.email.toLowerCase())).size;
   const totalVisits = logs.filter(l => (l.item || "").toLowerCase().includes("login") || (l.item || "").toLowerCase().includes("access")).length || logs.length;
   const totalDownloads = logs.filter(l => (l.item || "").toLowerCase().includes("download")).length;
+  const totalUploads = logs.filter(l => (l.item || "").toLowerCase().includes("upload")).length;
   const activePinsCount = Object.keys(adminState.pinConfig).length + 1;
 
   if (document.getElementById("statTotalUsers")) document.getElementById("statTotalUsers").textContent = uniqueUsers.toLocaleString();
   if (document.getElementById("statTotalVisits")) document.getElementById("statTotalVisits").textContent = totalVisits.toLocaleString();
   if (document.getElementById("statTotalDownloads")) document.getElementById("statTotalDownloads").textContent = totalDownloads.toLocaleString();
+  if (document.getElementById("statTotalUploads")) document.getElementById("statTotalUploads").textContent = totalUploads.toLocaleString();
   if (document.getElementById("statActivePins")) document.getElementById("statActivePins").textContent = activePinsCount.toLocaleString();
 
   renderVisitorsTable();
   renderPinsList();
   renderBlockedEmails();
 }
+
+function openUploadsStatsModal() {
+  const modal = document.getElementById("uploadsStatsModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  renderUploadsStatsTable();
+
+  const searchInput = document.getElementById("uploadSearchInput");
+  if (searchInput) {
+    searchInput.value = "";
+    searchInput.oninput = (e) => renderUploadsStatsTable(e.target.value);
+  }
+}
+
+function closeUploadsStatsModal() {
+  const modal = document.getElementById("uploadsStatsModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+window.openUploadsStatsModal = openUploadsStatsModal;
+window.closeUploadsStatsModal = closeUploadsStatsModal;
+
+function renderUploadsStatsTable(filterQuery = "") {
+  const tableBody = document.getElementById("uploadsStatsTableBody");
+  const subtitle = document.getElementById("uploadsStatsModalSubtitle");
+  if (!tableBody) return;
+
+  const logs = getParsedActivityLogs();
+  const uploadLogs = logs.filter(l => {
+    const itemStr = (l.item || "").toLowerCase();
+    return itemStr.includes("upload");
+  });
+
+  const query = filterQuery.toLowerCase().trim();
+  let filtered = uploadLogs;
+  if (query) {
+    filtered = uploadLogs.filter(l => l.email.toLowerCase().includes(query) || l.item.toLowerCase().includes(query) || l.vault.toLowerCase().includes(query));
+  }
+
+  if (subtitle) {
+    subtitle.textContent = `Total Uploads: ${uploadLogs.length} | Showing: ${filtered.length}`;
+  }
+
+  if (filtered.length === 0) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="4" class="py-8 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
+          No file upload activity recorded yet.
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tableBody.innerHTML = filtered.map(l => {
+    let formattedTime = l.timestamp;
+    try {
+      const dt = new Date(l.timestamp);
+      if (!isNaN(dt.getTime())) {
+        formattedTime = dt.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+      }
+    } catch (e) {}
+
+    const fileName = l.item.replace(/^Uploaded\s*(?:File\s*)?:\s*/i, "").trim();
+
+    return `
+      <tr class="border-b border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition text-xs">
+        <td class="py-2.5 px-4 font-bold text-teal-700 dark:text-teal-300">
+          ${escapeAdminHtml(fileName || l.item)}
+        </td>
+        <td class="py-2.5 px-4 font-semibold text-slate-800 dark:text-slate-200">
+          ${escapeAdminHtml(l.email)}
+        </td>
+        <td class="py-2.5 px-4">
+          <span class="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 border border-teal-200/60 dark:border-teal-800/60">
+            ${escapeAdminHtml(formatVaultDisplayName(l.vault))}
+          </span>
+        </td>
+        <td class="py-2.5 px-4 text-slate-500 dark:text-slate-400">
+          ${escapeAdminHtml(formattedTime)}
+        </td>
+      </tr>`;
+  }).join("");
+}
+
+window.openUploadsStatsModal = openUploadsStatsModal;
+window.closeUploadsStatsModal = closeUploadsStatsModal;
+
+function trackFileUpload(email, fileName, vaultPin = "3333") {
+  if (!email || isGuestOrAdminEmail(email, vaultPin)) return;
+  initAdminData();
+  const now = new Date().toISOString();
+
+  if (!adminState.userStats[email]) {
+    trackUserLogin(email, vaultPin);
+  }
+
+  if (adminState.userStats[email]) {
+    adminState.userStats[email].uploads = (adminState.userStats[email].uploads || 0) + 1;
+    adminState.userStats[email].lastPin = vaultPin;
+    localStorage.setItem("fm_user_stats", JSON.stringify(adminState.userStats));
+  }
+
+  const actionItem = `Uploaded File: ${fileName}`;
+
+  if (typeof logSharedActivity === "function") {
+    logSharedActivity({
+      email: email,
+      vault: formatVaultDisplayName(vaultPin),
+      timestamp: now,
+      item: actionItem
+    });
+  }
+
+  const newLog = {
+    id: Date.now(),
+    email: email,
+    pin: vaultPin,
+    timestamp: now,
+    action: actionItem
+  };
+
+  adminState.visitorLogs.unshift(newLog);
+  if (adminState.visitorLogs.length > 500) {
+    adminState.visitorLogs = adminState.visitorLogs.slice(0, 500);
+  }
+  localStorage.setItem("fm_visitor_logs", JSON.stringify(adminState.visitorLogs));
+
+  if (adminState.isAdminLoggedIn) {
+    renderAdminDashboard();
+  }
+}
+window.trackFileUpload = trackFileUpload;
 
 function formatVaultDisplayName(vaultRaw) {
   if (!vaultRaw) return "Academics";
@@ -267,6 +422,10 @@ function formatVaultDisplayName(vaultRaw) {
 
   if (str === "1919" || str === "2024" || str.toLowerCase().includes("attend")) {
     return "Attendance Vault";
+  }
+
+  if (str === "3333" || str.toLowerCase().includes("class upload") || str.toLowerCase().includes("upload folder")) {
+    return "Class Upload Folder (3333)";
   }
 
   if (str === "2334" || str.toLowerCase().includes("public vault") || str.toLowerCase().includes("public-folder") || str.toLowerCase().includes("folder vault")) {
@@ -441,12 +600,12 @@ function renderPinsList() {
       </div>
       <div class="flex items-center gap-2">
         ${!p.isAdmin ? `
-          ${(p.pin !== '1919' && p.pin !== '2334' && p.pin !== '1111' && p.id !== 'ATTENDANCE_VAULT') ? `
+          ${p.pin === '1717' ? `
             <button type="button" class="text-xs font-bold px-3 py-1.5 rounded-xl border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 transition" onclick="openAdminPinModal('${p.pin}')">
               Edit ⚙️ / Manage
             </button>
           ` : ''}
-          <button type="button" class="text-xs font-bold px-3 py-1.5 rounded-xl border transition ${p.isLocked ? 'border-amber-400 text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300' : 'border-slate-200 text-slate-700 bg-slate-100 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}" onclick="togglePinLock('${p.pin}')">
+          <button type="button" class="text-xs font-bold px-3.5 py-1.5 rounded-xl border transition ${p.isLocked ? 'border-amber-400 text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300' : 'border-slate-200 text-slate-700 bg-slate-100 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}" onclick="togglePinLock('${p.pin}')">
             ${p.isLocked ? '🔓 Unlock' : '🔒 Lock'}
           </button>
         ` : `<span class="text-xs font-bold text-slate-400">System Protected</span>`}

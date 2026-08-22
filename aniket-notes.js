@@ -42,6 +42,13 @@ const NOTES_DATA = {
           { id: "Binary_Search", name: "Binary Search", desc: "O(log n) divide-and-conquer search visualizer & notes", localUrl: "./Aniket-Notes/DSA/Binary_Search/binarysearch.html" },
           { id: "Linear_Search", name: "Linear Search", desc: "Sequential array element traversal visualizer & notes", localUrl: "./Aniket-Notes/DSA/Linear_Search/linearsearch.html" }
         ]
+      },
+      {
+        title: "Linear Data Structures",
+        icon: "📚",
+        topics: [
+          { id: "Stack_ADT", name: "Stack ADT", desc: "Interactive C++ Stack debugger, LIFO visualizer, memory rep & theory", localUrl: "./Aniket-Notes/DSA/Stack_ADT/stackadt.html" }
+        ]
       }
     ]
   }

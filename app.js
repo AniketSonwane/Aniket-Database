@@ -35,6 +35,11 @@ const DEFAULT_CONFIG = {
       name: "Public Vault",
       noLoginRequired: true
     },
+    "3333": {
+      id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
+      name: "Class Upload Folder",
+      noLoginRequired: false
+    },
     "1111": {
       id: _secDec(_SEC_STORE.r),
       name: "Aniket-Notes",
@@ -333,6 +338,16 @@ async function openManager(pin, targetFolder) {
   if (pin === "1111" || (state.root && (state.root.name === "Aniket-Notes" || state.root.id === "1111"))) {
     sessionStorage.setItem("vault_1111_unlocked", "true");
     window.location.href = "./aniket-notes.html";
+    return;
+  }
+
+  if (pin === "3333" || (state.root && (state.root.name === "Class Upload Folder" || state.root.id === "3333"))) {
+    sessionStorage.setItem("vault_3333_unlocked", "true");
+    const userEmail = (state.userEmail || localStorage.getItem("fm_user_email") || "").trim();
+    if (userEmail && typeof trackUserLogin === "function") {
+      trackUserLogin(userEmail, "3333");
+    }
+    window.location.href = "./vault3333.html";
     return;
   }
 
@@ -1326,6 +1341,43 @@ function saveStoredExams(exams) {
   return true;
 }
 
+function parseExamDateObj(dateStr) {
+  if (!dateStr) return new Date(0);
+  const str = String(dateStr).trim();
+
+  // Match DD/MM/YYYY or DD-MM-YYYY
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1;
+    const year = parseInt(dmyMatch[3], 10);
+    return new Date(year, month, day, 23, 59, 59);
+  }
+
+  // Match YYYY-MM-DD or YYYY/MM/DD
+  const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (ymdMatch) {
+    const year = parseInt(ymdMatch[1], 10);
+    const month = parseInt(ymdMatch[2], 10) - 1;
+    const day = parseInt(ymdMatch[3], 10);
+    return new Date(year, month, day, 23, 59, 59);
+  }
+
+  const dt = new Date(str);
+  if (!isNaN(dt.getTime())) return dt;
+  return new Date(0);
+}
+
+function formatDateDDMMYYYY(dateStr) {
+  if (!dateStr) return "";
+  const dt = parseExamDateObj(dateStr);
+  if (dt.getTime() === 0) return String(dateStr);
+  const day = String(dt.getDate()).padStart(2, '0');
+  const month = String(dt.getMonth() + 1).padStart(2, '0');
+  const year = dt.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
 let activeExamsSem = "3";
 
 function renderExamsView(semFilter = activeExamsSem, skipSync = false, isHistoryNav = false) {
@@ -1349,10 +1401,19 @@ function renderExamsView(semFilter = activeExamsSem, skipSync = false, isHistory
   const exams = getStoredExams();
   let filteredExams = semFilter === "all" ? exams : exams.filter(e => String(e.sem) === String(semFilter));
   
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   filteredExams.sort((a, b) => {
-    const dA = parseDateObj(a.date).getTime();
-    const dB = parseDateObj(b.date).getTime();
-    return dA - dB;
+    const dateA = parseExamDateObj(a.date);
+    const dateB = parseExamDateObj(b.date);
+    const isCompletedA = dateA < today;
+    const isCompletedB = dateB < today;
+
+    if (isCompletedA !== isCompletedB) {
+      return isCompletedA ? 1 : -1; // Bring completed exams to the bottom
+    }
+    return dateA.getTime() - dateB.getTime();
   });
 
   const isAdmin = typeof adminState !== "undefined" && adminState.isAdminLoggedIn;
@@ -1390,24 +1451,51 @@ function renderExamsView(semFilter = activeExamsSem, skipSync = false, isHistory
     return;
   }
 
-  const cardsHtml = filteredExams.map(ex => `
-    <div class="file-row border-l-4 border-l-amber-500 cursor-pointer transition hover:scale-[1.005]" onclick="showExamDetail('${ex.id}')">
-      <div class="file-icon bg-amber-500/10 text-amber-600 dark:text-amber-400 font-black">📅</div>
-      <div class="file-main">
-        <div class="flex items-center gap-2">
-          <div class="file-name">${escapeHtml(ex.title)}</div>
-          <span class="px-2 py-0.5 text-[10px] font-black rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">Sem ${escapeHtml(ex.sem)}</span>
+  const cardsHtml = filteredExams.map(ex => {
+    const dt = parseExamDateObj(ex.date);
+    const isCompleted = dt < today;
+
+    if (isCompleted) {
+      return `
+        <div class="file-row border-l-4 border-l-slate-400 dark:border-l-slate-600 bg-slate-100/50 dark:bg-slate-900/40 opacity-70 cursor-pointer transition hover:scale-[1.005]" onclick="showExamDetail('${ex.id}')">
+          <div class="file-icon bg-slate-500/10 text-slate-500 dark:text-slate-400 font-black">✔️</div>
+          <div class="file-main">
+            <div class="flex items-center gap-2 flex-wrap">
+              <div class="file-name text-slate-500 dark:text-slate-400 line-through">${escapeHtml(ex.title)}</div>
+              <span class="px-2 py-0.5 text-[10px] font-black rounded-md bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">Sem ${escapeHtml(ex.sem)}</span>
+              <span class="px-2 py-0.5 text-[10px] font-black rounded-md bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-300 dark:border-slate-700">Completed ✓</span>
+            </div>
+            <div class="file-meta text-slate-400 dark:text-slate-500">
+              📅 ${escapeHtml(formatDateDDMMYYYY(ex.date))} • ⏰ ${escapeHtml(ex.time)} • 📍 ${escapeHtml(ex.room || "Main Hall")} • 📘 ${escapeHtml(ex.subject || "Course")}
+            </div>
+          </div>
+          ${isAdmin ? `
+            <div class="row-actions" onclick="event.stopPropagation()">
+              <button class="action-btn text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40" onclick="deleteExamDate('${ex.id}')">Delete 🗑️</button>
+            </div>` : ''}
         </div>
-        <div class="file-meta">
-          📅 ${escapeHtml(formatDateDDMMYYYY(ex.date))} • ⏰ ${escapeHtml(ex.time)} • 📍 ${escapeHtml(ex.room || "Main Hall")} • 📘 ${escapeHtml(ex.subject || "Course")}
+      `;
+    }
+
+    return `
+      <div class="file-row border-l-4 border-l-amber-500 cursor-pointer transition hover:scale-[1.005]" onclick="showExamDetail('${ex.id}')">
+        <div class="file-icon bg-amber-500/10 text-amber-600 dark:text-amber-400 font-black">📅</div>
+        <div class="file-main">
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="file-name">${escapeHtml(ex.title)}</div>
+            <span class="px-2 py-0.5 text-[10px] font-black rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">Sem ${escapeHtml(ex.sem)}</span>
+          </div>
+          <div class="file-meta">
+            📅 ${escapeHtml(formatDateDDMMYYYY(ex.date))} • ⏰ ${escapeHtml(ex.time)} • 📍 ${escapeHtml(ex.room || "Main Hall")} • 📘 ${escapeHtml(ex.subject || "Course")}
+          </div>
         </div>
+        ${isAdmin ? `
+          <div class="row-actions" onclick="event.stopPropagation()">
+            <button class="action-btn text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40" onclick="deleteExamDate('${ex.id}')">Delete 🗑️</button>
+          </div>` : ''}
       </div>
-      ${isAdmin ? `
-        <div class="row-actions" onclick="event.stopPropagation()">
-          <button class="action-btn text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40" onclick="deleteExamDate('${ex.id}')">Delete 🗑️</button>
-        </div>` : ''}
-    </div>
-  `).join("");
+    `;
+  }).join("");
 
   $("fileList").innerHTML = semTabsHtml + cardsHtml;
   wireExamEvents();
@@ -2195,6 +2283,12 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
+  if ($("statCardUploads")) {
+    $("statCardUploads").onclick = () => {
+      if (typeof openUploadsStatsModal === "function") openUploadsStatsModal();
+    };
+  }
+
   if ($("statCardActivePins")) {
     $("statCardActivePins").onclick = () => {
       if (typeof openAvailablePinsModal === "function") openAvailablePinsModal();
@@ -2204,6 +2298,12 @@ document.addEventListener("DOMContentLoaded", () => {
   if ($("downloadSearchInput")) {
     $("downloadSearchInput").oninput = (e) => {
       if (typeof renderDownloadsStatsTable === "function") renderDownloadsStatsTable(e.target.value);
+    };
+  }
+
+  if ($("uploadSearchInput")) {
+    $("uploadSearchInput").oninput = (e) => {
+      if (typeof renderUploadsStatsTable === "function") renderUploadsStatsTable(e.target.value);
     };
   }
 
