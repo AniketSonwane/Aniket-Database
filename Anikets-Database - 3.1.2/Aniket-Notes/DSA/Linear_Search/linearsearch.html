@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Linear Search Visualizer - Interactive C++ Algorithm Learning</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="linearsearch-styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Navigation Bar with Theme Toggle Button -->
+    <nav class="top-bar">
+      <div class="brand-badge">Aniket's • DSA Visualizer</div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button id="themeToggleBtn" class="theme-toggle-icon-btn" title="Toggle Light / Dark Theme">
+          <div class="theme-icon-circle">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+            </svg>
+          </div>
+        </button>
+        <a href="../../../aniket-notes.html" class="theme-toggle-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+          ← Back to Aniket-Notes
+        </a>
+      </div>
+    </nav>
+
+    <!-- Hero Header -->
+    <header class="header-hero">
+      <h1 class="hero-title">Linear Search Visualizer</h1>
+      <h2 class="hero-subtitle">Interactive C++ Algorithm Learning</h2>
+      <p class="hero-tagline">Developed by Aniket Sonwane</p>
+    </header>
+
+    <!-- 1. Input Section Card -->
+    <section class="glass-card input-section">
+      <div class="input-header">
+        <h3 class="section-title">
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Enter Array & Target Value
+        </h3>
+      </div>
+
+      <div class="input-group">
+        <input type="text" id="arrayInput" class="array-input" value="10, 25, 30, 45, 50" placeholder="Array: e.g. 10, 25, 30, 45, 50">
+        <input type="number" id="targetInput" class="target-input" value="45" placeholder="Target: 45">
+        <button id="applyBtn" class="btn btn-primary btn-sm">Search</button>
+        <button id="randomBtn" class="btn btn-secondary btn-sm">Random Array</button>
+        <button id="randomTargetBtn" class="btn btn-secondary btn-sm">Random Target</button>
+        <button id="resetInputBtn" class="btn btn-secondary btn-sm">Reset</button>
+      </div>
+      <div id="inputError" class="error-msg">Invalid input. Please enter 2 to 12 integers separated by commas and a valid target integer.</div>
+    </section>
+
+    <!-- 2. Controls Bar (Placed directly after Enter Array card) -->
+    <section class="glass-card controls-card">
+      <div class="controls-row">
+        
+        <div class="nav-controls-group">
+          <button id="prevBtn" class="btn btn-secondary" title="Previous Step">⏮ Previous Step</button>
+          <button id="playBtn" class="btn btn-primary" title="Play / Pause">▶ Play</button>
+          <button id="nextBtn" class="btn btn-secondary" title="Next Step">Next Step ⏭</button>
+          <button id="restartBtn" class="btn btn-secondary" title="Reset">↻ Reset</button>
+        </div>
+
+        <div class="step-info">
+          <span id="stepCounterText" class="font-mono font-bold text-indigo-400">Step: 1 / 6</span>
+        </div>
+
+        <div class="speed-control-group">
+          <span>Speed:</span>
+          <input type="range" id="speedSlider" class="speed-slider" min="100" max="1500" value="700" step="50" style="direction: rtl;">
+        </div>
+
+      </div>
+
+      <div class="w-full">
+        <input type="range" id="timelineSlider" class="timeline-slider" min="0" max="6" value="0">
+      </div>
+    </section>
+
+    <!-- 3. Main Two-Column Visualizer Layout -->
+    <main class="grid-main-visualizer">
+
+      <!-- LEFT COLUMN: Array Visualization Stage -->
+      <section class="glass-card left-stage">
+        
+        <!-- Live Statistics Panel -->
+        <div class="stats-bar">
+          <div class="stat-item">
+            <span class="stat-label">Comparisons</span>
+            <span id="statComp" class="stat-val">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Checked</span>
+            <span id="statChecked" class="stat-val">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Size</span>
+            <span id="statSize" class="stat-val">5</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Target</span>
+            <span id="statTarget" class="stat-val">45</span>
+          </div>
+        </div>
+
+        <!-- Variable Tracking Bar -->
+        <div class="variables-bar">
+          <span class="var-pill">n = <strong id="varN">5</strong></span>
+          <span class="var-pill active-i">i = <strong id="varI">0</strong></span>
+          <span class="var-pill active-target">target = <strong id="varTarget">45</strong></span>
+          <span class="var-pill">arr[i] = <strong id="varArrI">10</strong></span>
+        </div>
+
+        <!-- Prominent Target Card -->
+        <div class="target-card">
+          <div class="target-card-title">🔍 Search Target</div>
+          <div class="target-card-value">Target = <span id="targetCardVal" class="text-cyan-400">45</span></div>
+        </div>
+
+        <!-- Search Progress Card -->
+        <div class="progress-card">
+          <div class="progress-header">
+            <span>Search Progress</span>
+            <span id="progressText" class="font-mono font-bold text-cyan-400">Checked: 0 / 5</span>
+          </div>
+          <div class="progress-bar-track">
+            <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Main Array Canvas Stage -->
+        <div id="arrayStage" class="array-stage-container">
+          <!-- Animated Element Boxes injected dynamically -->
+        </div>
+
+        <!-- Current Operation Panel (Zero Overlap 2-Row Layout) -->
+        <div class="current-op-card">
+          <div class="flex justify-between items-center">
+            <div class="op-card-title">Current Operation</div>
+            <span id="opPhase" class="text-xs font-mono font-bold px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">INITIALIZATION</span>
+          </div>
+          
+          <div class="op-top-row">
+            <div class="op-metric-box">
+              <span class="op-lbl">Comparing</span>
+              <span id="opComparing" class="op-val">—</span>
+            </div>
+            <div class="op-metric-box">
+              <span class="op-lbl">Values</span>
+              <span id="opValues" class="op-val">—</span>
+            </div>
+            <div class="op-metric-box">
+              <span class="op-lbl">Result</span>
+              <span id="opResult" class="op-val true">OK</span>
+            </div>
+          </div>
+
+          <div class="op-bottom-info">
+            <div class="op-info-line">
+              <span class="info-lbl">Condition:</span>
+              <span id="opCondition" class="info-val text-amber-400 font-mono">Ready</span>
+            </div>
+            <div class="op-info-line">
+              <span class="info-lbl">Action:</span>
+              <span id="opAction" class="info-val text-pink-400 font-mono">Starting Linear Search</span>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- RIGHT COLUMN: C++ Code Execution & Line Tracker -->
+      <section class="right-stage">
+
+        <!-- C++ Code Block -->
+        <div class="glass-card code-card">
+          <div class="input-header">
+            <h3 class="section-title">
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              C++ Code Execution
+            </h3>
+          </div>
+
+          <div class="code-container">
+            <div class="code-line" id="line-1"><span class="line-num">1</span><span class="code-text"><span class="type">int</span> <span class="func">linearSearch</span>(<span class="type">int</span> <span class="var">arr</span>[], <span class="type">int</span> <span class="var">n</span>, <span class="type">int</span> <span class="var">target</span>)</span></div>
+            <div class="code-line" id="line-2"><span class="line-num">2</span><span class="code-text">{</span></div>
+            <div class="code-line" id="line-3"><span class="line-num">3</span><span class="code-text">    <span class="keyword">for</span> (<span class="type">int</span> <span class="var">i</span> = <span class="number">0</span>; <span class="var">i</span> &lt; <span class="var">n</span>; <span class="var">i</span>++)</span></div>
+            <div class="code-line" id="line-4"><span class="line-num">4</span><span class="code-text">    {</span></div>
+            <div class="code-line" id="line-5"><span class="line-num">5</span><span class="code-text">        <span class="keyword">if</span> (<span class="var">arr</span>[<span class="var">i</span>] == <span class="var">target</span>)</span></div>
+            <div class="code-line" id="line-6"><span class="line-num">6</span><span class="code-text">        {</span></div>
+            <div class="code-line" id="line-7"><span class="line-num">7</span><span class="code-text">            <span class="keyword">return</span> <span class="var">i</span>;</span></div>
+            <div class="code-line" id="line-8"><span class="line-num">8</span><span class="code-text">        }</span></div>
+            <div class="code-line" id="line-9"><span class="line-num">9</span><span class="code-text">    }</span></div>
+            <div class="code-line" id="line-10"><span class="line-num">10</span><span class="code-text"></span></div>
+            <div class="code-line" id="line-11"><span class="line-num">11</span><span class="code-text">    <span class="keyword">return</span> -<span class="number">1</span>;</span></div>
+            <div class="code-line" id="line-12"><span class="line-num">12</span><span class="code-text">}</span></div>
+          </div>
+        </div>
+
+        <!-- Execution Explanation Card -->
+        <div class="glass-card execution-card">
+          <div class="exec-header">Currently Executing</div>
+          <div id="execLineText" class="exec-line-text">int linearSearch(int arr[], int n, int target)</div>
+          <div id="execAction" class="exec-action">Starting linearSearch execution</div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Completion Screen Card -->
+    <section id="resultCard" class="glass-card result-card">
+      <div id="resultTitle" class="result-title">✓ Element Found!</div>
+      
+      <div class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Searched Array:</div>
+      <div id="sortedDisplay" class="flex gap-2 flex-wrap justify-center my-2"></div>
+
+      <div class="flex gap-6 flex-wrap justify-center my-2 text-sm">
+        <div>Target: <strong id="resultTarget" class="text-cyan-400 font-mono">45</strong></div>
+        <div>Comparisons: <strong id="resultComps" class="text-emerald-400 font-mono">4</strong></div>
+        <div>Checked: <strong id="resultChecked" class="text-indigo-400 font-mono">4</strong></div>
+        <div>Result: <strong id="resultIndex" class="text-emerald-400 font-mono">return 3</strong></div>
+      </div>
+
+      <button id="tryAnotherBtn" class="btn btn-primary btn-sm mt-2">Try Another Search</button>
+    </section>
+
+    <!-- Educational & Theory Sections -->
+    <article class="glass-card theory-section">
+      
+      <!-- Section 12: Theory Explanation -->
+      <div>
+        <h2 class="text-2xl font-bold mb-3 text-indigo-400"># Linear Search</h2>
+        <p class="text-gray-300 leading-relaxed mb-4">
+          Linear Search (also known as sequential search) is a simple searching algorithm that inspects each element of an array <strong>one by one from left to right</strong> until the target value is found or the entire array has been searched.
+        </p>
+
+        <h3 class="text-lg font-bold text-gray-200 mb-2">Linear Search Example:</h3>
+        <div class="bg-slate-900/60 p-4 rounded-xl font-mono text-sm border border-slate-700/50 space-y-2">
+          <div class="text-indigo-300">Array: [ 10, 25, 30, 45, 50 ], Target = 45</div>
+          <div>i = 0: arr[0] = 10 == 45 → FALSE</div>
+          <div>i = 1: arr[1] = 25 == 45 → FALSE</div>
+          <div>i = 2: arr[2] = 30 == 45 → FALSE</div>
+          <div class="text-emerald-400">i = 3: arr[3] = 45 == 45 → TRUE (Match Found!)</div>
+          <div class="text-cyan-400">Result: Target 45 found at index 3</div>
+        </div>
+
+        <div class="mt-4 bg-slate-900/40 p-4 rounded-xl border border-slate-700/40 text-sm text-gray-300">
+          <strong class="text-amber-400">Note on Duplicate Values:</strong> If the array contains duplicate occurrences of the target value (e.g. <code>[10, 20, 30, 20, 40]</code> with target <code>20</code>), Linear Search returns the <strong>index of the first occurrence</strong> (index 1) and stops.
+        </div>
+      </div>
+
+      <hr class="border-slate-700/50">
+
+      <!-- Section 13: Step-by-Step Algorithm -->
+      <div>
+        <h3 class="text-xl font-bold mb-3 text-indigo-400">Linear Search Step-by-Step Algorithm</h3>
+        <div class="step-list">
+          <div class="step-item"><span class="step-badge">1</span><span>Start from the first element of the array (set <code>i = 0</code>).</span></div>
+          <div class="step-item"><span class="step-badge">2</span><span>Check if <code>i < n</code>. If false, array traversal is complete.</span></div>
+          <div class="step-item"><span class="step-badge">3</span><span>Compare the current element <code>arr[i]</code> with the <code>target</code> value.</span></div>
+          <div class="step-item"><span class="step-badge">4</span><span>If <code>arr[i] == target</code>, return index <code>i</code> (Search successful!).</span></div>
+          <div class="step-item"><span class="step-badge">5</span><span>If <code>arr[i] != target</code>, increment <code>i</code> (move to the next index).</span></div>
+          <div class="step-item"><span class="step-badge">6</span><span>Repeat steps 2 to 5 until the target is found or index <code>i</code> reaches <code>n</code>.</span></div>
+          <div class="step-item"><span class="step-badge">7</span><span>If the target is not found after checking all elements, return <code>-1</code>.</span></div>
+        </div>
+      </div>
+
+      <hr class="border-slate-700/50">
+
+      <!-- Section 14: Flowchart (Fixed Clean Layout & Full END Node) -->
+      <div>
+        <h3 class="text-xl font-bold mb-3 text-indigo-400">Linear Search Algorithm Flowchart</h3>
+        <div class="flowchart-container">
+          <svg class="flowchart-svg" width="700" height="800" viewBox="0 0 700 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+              </marker>
+              <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981" />
+              </marker>
+              <marker id="arrow-red" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#f43f5e" />
+              </marker>
+            </defs>
+
+            <!-- START -->
+            <rect x="280" y="20" width="140" height="44" rx="22" fill="#6366f1" />
+            <text x="350" y="47" fill="white" font-weight="bold" font-family="sans-serif" text-anchor="middle" font-size="14">START</text>
+            <path d="M 350 64 V 90" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)" />
+
+            <!-- Input Array & Target -->
+            <polygon points="240,90 460,90 440,126 220,126" fill="#1e293b" stroke="#6366f1" stroke-width="2" />
+            <text x="340" y="113" fill="#f8fafc" font-family="sans-serif" text-anchor="middle" font-size="13">Input arr[], n, target</text>
+            <path d="M 340 126 V 156" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)" />
+
+            <!-- Init i = 0 -->
+            <rect x="260" y="156" width="180" height="40" rx="8" fill="#581c87" stroke="#a855f7" stroke-width="2" />
+            <text x="350" y="181" fill="#e9d5ff" font-family="monospace" text-anchor="middle" font-size="13" font-weight="bold">i = 0</text>
+            <path d="M 350 196 V 226" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)" />
+
+            <!-- Decision 1: i < n? -->
+            <polygon points="350,226 470,261 350,296 230,261" fill="#1e293b" stroke="#f59e0b" stroke-width="2" />
+            <text x="350" y="266" fill="#fbbf24" font-family="sans-serif" text-anchor="middle" font-size="13" font-weight="bold">i < n ?</text>
+
+            <!-- NO Path (Not Found: return -1) -->
+            <path d="M 470 261 H 560 V 430" stroke="#f43f5e" stroke-width="2" marker-end="url(#arrow-red)" />
+            <text x="500" y="251" fill="#f43f5e" font-weight="bold" font-size="12">No</text>
+            <rect x="490" y="430" width="140" height="40" rx="8" fill="#831843" stroke="#f43f5e" stroke-width="2" />
+            <text x="560" y="455" fill="#fce7f3" font-family="monospace" text-anchor="middle" font-size="12" font-weight="bold">return -1</text>
+            <path d="M 560 470 V 660 H 420" stroke="#f43f5e" stroke-width="2" marker-end="url(#arrow-red)" />
+
+            <!-- YES Path (Compare arr[i] == target) -->
+            <path d="M 350 296 V 336" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)" />
+            <text x="365" y="315" fill="#10b981" font-weight="bold" font-size="12">Yes</text>
+
+            <!-- Decision 2: arr[i] == target? -->
+            <polygon points="350,336 480,376 350,416 220,376" fill="#1e293b" stroke="#06b6d4" stroke-width="2" />
+            <text x="350" y="381" fill="#38bdf8" font-family="sans-serif" text-anchor="middle" font-size="13" font-weight="bold">arr[i] == target ?</text>
+
+            <!-- YES Path (Found: return i) -->
+            <path d="M 350 416 V 466" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)" />
+            <text x="365" y="440" fill="#10b981" font-weight="bold" font-size="12">Yes</text>
+            <rect x="270" y="466" width="160" height="40" rx="8" fill="#064e3b" stroke="#10b981" stroke-width="2" />
+            <text x="350" y="491" fill="#a7f3d0" font-family="monospace" text-anchor="middle" font-size="13" font-weight="bold">return i</text>
+            <path d="M 350 506 V 660" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)" />
+
+            <!-- NO Path (Increment i++ loop back cleanly to left vertex of i < n?) -->
+            <path d="M 220 376 H 140 V 261 H 230" stroke="#f59e0b" stroke-dasharray="6,4" stroke-width="2" marker-end="url(#arrow)" />
+            <text x="110" y="325" fill="#f59e0b" font-weight="bold" font-size="12">No (i++)</text>
+
+            <!-- END -->
+            <rect x="280" y="660" width="140" height="44" rx="22" fill="#10b981" />
+            <text x="350" y="687" fill="white" font-weight="bold" font-family="sans-serif" text-anchor="middle" font-size="14">END</text>
+          </svg>
+        </div>
+      </div>
+
+      <hr class="border-slate-700/50">
+
+      <!-- Section 15: Complexity Analysis -->
+      <div>
+        <h3 class="text-xl font-bold mb-3 text-indigo-400">Complexity Analysis</h3>
+        
+        <h4 class="text-md font-bold text-gray-300 mt-2">Time Complexity:</h4>
+        <table class="complexity-table">
+          <thead>
+            <tr>
+              <th>Case</th>
+              <th>Complexity</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-bold text-emerald-400">Best Case</td>
+              <td>O(1)</td>
+              <td>The target element is found at the very first index (<code>arr[0]</code>).</td>
+            </tr>
+            <tr>
+              <td class="font-bold text-amber-400">Average Case</td>
+              <td>O(n)</td>
+              <td>On average, approximately half of the elements (n/2) are inspected.</td>
+            </tr>
+            <tr>
+              <td class="font-bold text-rose-400">Worst Case</td>
+              <td>O(n)</td>
+              <td>The target is at the last position or does not exist in the array.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h4 class="text-md font-bold text-gray-300 mt-4 mb-1">Space Complexity:</h4>
+        <div class="bg-slate-900/60 p-3 rounded-lg font-mono text-sm text-emerald-400 border border-slate-700/50">
+          O(1) Auxiliary Space
+        </div>
+        <p class="text-xs text-gray-400 mt-2">
+          Linear Search requires no extra memory arrays or call stack memory.
+        </p>
+      </div>
+
+      <hr class="border-slate-700/50">
+
+      <!-- Section 16 & 17: Properties & Trade-offs -->
+      <div>
+        <h3 class="text-xl font-bold mb-3 text-indigo-400">Algorithm Properties & Trade-offs</h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-700/40">
+            <h4 class="font-bold text-cyan-400 mb-1">Method</h4>
+            <p class="text-gray-300 text-xs">
+              <strong>Sequential Traversal</strong><br>Scans elements one by one from left to right.
+            </p>
+          </div>
+
+          <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-700/40">
+            <h4 class="font-bold text-emerald-400 mb-1">Array Requirement</h4>
+            <p class="text-gray-300 text-xs">
+              <strong>Works on Unsorted Arrays</strong><br>No sorting required prior to searching.
+            </p>
+          </div>
+
+          <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-700/40">
+            <h4 class="font-bold text-indigo-300 mb-1">Comparison-Based</h4>
+            <p class="text-gray-300 text-xs">
+              <strong>Yes</strong><br>Compares array values using equality operator <code>==</code>.
+            </p>
+          </div>
+
+          <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-700/40">
+            <h4 class="font-bold text-emerald-400 mb-1">Advantages</h4>
+            <ul class="list-disc list-inside text-xs text-gray-300 space-y-1">
+              <li>Very simple and easy to implement.</li>
+              <li>Works on unsorted and sorted arrays alike.</li>
+              <li>Requires O(1) space.</li>
+              <li>Handles duplicate values easily.</li>
+            </ul>
+          </div>
+
+          <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-700/40">
+            <h4 class="font-bold text-rose-400 mb-1">Disadvantages</h4>
+            <ul class="list-disc list-inside text-xs text-gray-300 space-y-1">
+              <li>Slow O(n) execution for large datasets.</li>
+              <li>In-efficient compared to Binary Search O(log n) on sorted data.</li>
+            </ul>
+          </div>
+
+          <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-700/40">
+            <h4 class="font-bold text-purple-400 mb-1">Space Complexity</h4>
+            <p class="text-gray-300 text-xs">
+              <strong>O(1) Constant Space</strong><br>Only uses index counter variable <code>i</code>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <hr class="border-slate-700/50">
+
+      <!-- Section 18: Linear Search vs Binary Search -->
+      <div>
+        <h3 class="text-xl font-bold mb-3 text-indigo-400">Linear Search vs Binary Search</h3>
+        <table class="complexity-table">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Linear Search</th>
+              <th>Binary Search</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-bold text-gray-300">Array Requirement</td>
+              <td>Any Array (Sorted / Unsorted)</td>
+              <td>Sorted Array Only</td>
+            </tr>
+            <tr>
+              <td class="font-bold text-emerald-400">Best Case</td>
+              <td>O(1)</td>
+              <td>O(1)</td>
+            </tr>
+            <tr>
+              <td class="font-bold text-amber-400">Average Case</td>
+              <td>O(n)</td>
+              <td>O(log n)</td>
+            </tr>
+            <tr>
+              <td class="font-bold text-rose-400">Worst Case</td>
+              <td>O(n)</td>
+              <td>O(log n)</td>
+            </tr>
+            <tr>
+              <td class="font-bold text-cyan-400">Extra Space</td>
+              <td>O(1)</td>
+              <td>O(1) Iterative / O(log n) Recursive</td>
+            </tr>
+            <tr>
+              <td class="font-bold text-purple-400">Search Strategy</td>
+              <td>Sequential Traversal</td>
+              <td>Divide and Conquer (Halving)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </article>
+
+    <!-- Footer -->
+    <footer>
+      Linear Search Visualizer & Educational C++ Debugger<br>
+      <span class="text-indigo-400 font-bold">Developed by Aniket Sonwane</span>
+    </footer>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="linearsearch-engine.js"></script>
+  <script src="linearsearch-visualizer.js"></script>
+  <script src="linearsearch-app.js"></script>
+</body>
+</html>
