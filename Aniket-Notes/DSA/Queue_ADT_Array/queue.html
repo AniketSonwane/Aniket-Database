@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Queue ADT Visualizer - Interactive Array Implementation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="queue-styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Navigation Bar -->
+    <nav class="top-bar">
+      <div class="brand-badge">Aniket's • DSA Visualizer</div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button id="themeToggleBtn" class="theme-toggle-icon-btn" title="Toggle Light / Dark Theme">
+          <div class="theme-icon-circle">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+            </svg>
+          </div>
+        </button>
+        <a href="../../../aniket-notes.html" class="back-link">
+          ← Back to Aniket-Notes
+        </a>
+      </div>
+    </nav>
+
+    <!-- Hero Header -->
+    <header class="header-hero">
+      <h1 class="hero-title">Queue ADT Visualizer</h1>
+      <h2 class="hero-subtitle">Interactive Array Implementation</h2>
+      <p class="hero-tagline">Developed by Aniket Sonwane</p>
+    </header>
+
+    <!-- 1. Input & Controls Section Card -->
+    <section class="glass-card">
+      <div class="input-header">
+        <h3 class="section-title">
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Queue Operations
+        </h3>
+      </div>
+
+      <div class="input-group-row">
+        <input type="number" id="valInput" class="val-input" placeholder="e.g. 42" value="42">
+        <button id="enqueueBtn" class="btn btn-primary">📥 Enqueue</button>
+        <button id="dequeueBtn" class="btn btn-danger">📤 Dequeue</button>
+        <button id="peekBtn" class="btn btn-amber">👁 Peek</button>
+        <button id="isEmptyBtn" class="btn btn-accent">❓ Is Empty</button>
+        <button id="isFullBtn" class="btn btn-secondary">🧱 Is Full</button>
+        <button id="clearBtn" class="btn btn-secondary">🗑 Clear</button>
+        <button id="randomEnqueueBtn" class="btn btn-secondary">🎲 Random Enqueue</button>
+        <button id="presetDemoBtn" class="btn btn-secondary">▶ Run Demo</button>
+      </div>
+      <div id="inputError" class="error-msg">Please enter a valid integer.</div>
+    </section>
+
+    <!-- 2. Controls Bar (Playback & Timeline Slider) -->
+    <section class="glass-card controls-card">
+      <div class="controls-row">
+        
+        <div class="nav-controls-group">
+          <button id="prevBtn" class="btn btn-secondary" title="Previous Step">⏮ Previous Step</button>
+          <button id="playBtn" class="btn btn-primary" title="Play / Pause">▶ Play</button>
+          <button id="nextBtn" class="btn btn-secondary" title="Next Step">Next Step ⏭</button>
+          <button id="restartBtn" class="btn btn-secondary" title="Reset">↻ Reset</button>
+        </div>
+
+        <div class="step-info">
+          <span id="stepCounterText">Step: 1 / 1</span>
+        </div>
+
+        <div class="speed-control-group">
+          <span>Speed:</span>
+          <input type="range" id="speedSlider" class="speed-slider" min="100" max="1500" value="700" step="50" style="direction: rtl;">
+        </div>
+
+      </div>
+
+      <div class="w-full">
+        <input type="range" id="timelineSlider" class="timeline-slider" min="1" max="1" value="1">
+      </div>
+    </section>
+
+    <!-- 3. Main Two-Column Visualizer Layout -->
+    <main class="grid-main-visualizer">
+
+      <!-- LEFT COLUMN: Array Queue Stage -->
+      <section class="glass-card left-stage">
+        
+        <!-- Live Statistics Panel -->
+        <div class="stats-bar">
+          <div class="stat-item">
+            <span class="stat-label">Size / Cap</span>
+            <span id="statSize" class="stat-val">3 / 5</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">FRONT Index</span>
+            <span id="statFrontIdx" class="stat-val">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">REAR Index</span>
+            <span id="statRearIdx" class="stat-val">2</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">FRONT Value</span>
+            <span id="statFrontVal" class="stat-val">10</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Status</span>
+            <span id="statStatus" class="stat-val" style="color: #10b981;">Not Empty</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Enqueues</span>
+            <span id="statEnqueues" class="stat-val">3</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Dequeues</span>
+            <span id="statDequeues" class="stat-val">0</span>
+          </div>
+        </div>
+
+        <!-- Main Horizontal Array Queue Canvas Stage -->
+        <div id="queueStage" class="queue-stage-container">
+          <!-- Dynamic Array Cells & Pointer Badges injected here -->
+        </div>
+
+        <!-- Linear Queue Limitation Alert Banner (Hidden by default, shown when REAR=4 & FRONT>0) -->
+        <div id="linearAlertBox" class="limitation-alert-card" style="display: none;">
+          <div class="alert-icon">⚠️</div>
+          <div>
+            <div class="alert-title">Linear Array Queue Limitation Detected!</div>
+            <div class="alert-body">
+              REAR is at index 4 (end of array), but FRONT is > 0. Even though empty slots exist at the beginning, a simple linear array queue cannot reuse them! This leads to <strong>Queue Overflow</strong>. <em>Solution: Circular Queue.</em>
+            </div>
+          </div>
+        </div>
+
+        <!-- FIFO Tracking Visualizer Bar -->
+        <div class="fifo-bar-container">
+          <div class="fifo-title">
+            <span>FIFO Order Tracking (First In, First Out)</span>
+            <span class="text-xs text-sky-400">FRONT ➔ REAR</span>
+          </div>
+          <div id="fifoContainer" class="fifo-elements-row">
+            <!-- Dynamic FIFO pills -->
+          </div>
+        </div>
+
+        <!-- Current Operation Summary Panel -->
+        <div class="current-op-card">
+          <div class="op-card-title">Current Operation</div>
+          
+          <div class="op-metrics-grid">
+            <div class="op-metric-box">
+              <span class="op-lbl">Action</span>
+              <span id="opAction" class="op-val">Enqueue</span>
+            </div>
+            <div class="op-metric-box">
+              <span class="op-lbl">Target Value</span>
+              <span id="opValue" class="op-val">30</span>
+            </div>
+            <div class="op-metric-box">
+              <span class="op-lbl">Result State</span>
+              <span id="opResult" class="op-val success">Enqueued 30</span>
+            </div>
+          </div>
+
+          <div class="op-info-box">
+            <span id="opInfoText">Inserted value 30 at index 2. Enqueue complete.</span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- RIGHT COLUMN: C++ Execution & Step Explanation -->
+      <section class="glass-card right-code-panel">
+        
+        <div class="code-card-header">
+          <h3 class="section-title" style="margin-bottom: 0;">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+            C++ Execution Track
+          </h3>
+          <span class="code-title-badge">C++ Array Queue</span>
+        </div>
+
+        <!-- C++ Code Highlighter Container -->
+        <div id="cppCodeLines" class="code-container">
+          <!-- Code lines injected dynamically -->
+        </div>
+
+        <!-- Step Explanation Card -->
+        <div class="step-exp-card">
+          <div class="exp-title">Step Explanation</div>
+          <p id="stepDescText" class="exp-desc">
+            Inserted value 30 at index 2. Enqueue complete.
+          </p>
+        </div>
+
+        <!-- History Log List Card -->
+        <div class="step-exp-card">
+          <div class="exp-title">Operation History</div>
+          <div id="historyLogList" class="history-log-card">
+            <!-- Dynamic Log Items -->
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- 4. Theory & Educational Sections -->
+    <section class="theory-grid">
+      
+      <!-- Queue ADT Concept Card -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          📚 What is Queue ADT?
+        </h3>
+        <p class="text-sm text-slate-300 leading-relaxed mb-3">
+          A <strong>Queue</strong> is a linear data structure following the <strong>FIFO (First In, First Out)</strong> principle. The first element inserted at the rear is always the first element removed from the front.
+        </p>
+        <p class="text-sm text-slate-300 leading-relaxed">
+          In an <strong>Array implementation (Capacity = 5)</strong>, the queue uses two integer pointers:
+        </p>
+        <ul class="text-xs text-slate-400 mt-2 space-y-1 pl-4 list-disc font-mono">
+          <li><strong class="text-sky-400">FRONT</strong>: Index of the element to be dequeued (initially -1).</li>
+          <li><strong class="text-indigo-400">REAR</strong>: Index of the last enqueued element (initially -1).</li>
+        </ul>
+      </div>
+
+      <!-- Linear Queue Limitation Card -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          ⚠️ Linear Queue Limitation
+        </h3>
+        <p class="text-sm text-slate-300 leading-relaxed mb-3">
+          In a simple <strong>Linear Array Queue</strong>, once <code class="text-amber-400 font-mono">REAR == CAPACITY - 1</code>, no more elements can be enqueued — even if elements were dequeued from the front!
+        </p>
+        <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50 font-mono text-xs text-slate-300 mb-2">
+          [ Empty ] [ Empty ] [ 30 ] [ 40 ] [ 50 ]<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↑&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↑<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;FRONT&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;REAR (Full!)
+        </div>
+        <p class="text-xs text-slate-400">
+          💡 <strong>Solution:</strong> A <em>Circular Queue</em> reuses empty slots using modulo arithmetic <code class="text-indigo-400">(rear + 1) % size</code>.
+        </p>
+      </div>
+
+      <!-- Complexity Table Card -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          ⚡ Time & Space Complexity
+        </h3>
+        <table class="table-custom">
+          <thead>
+            <tr>
+              <th>Operation</th>
+              <th>Time Complexity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Enqueue</td>
+              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+            </tr>
+            <tr>
+              <td>Dequeue</td>
+              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+            </tr>
+            <tr>
+              <td>Peek</td>
+              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+            </tr>
+            <tr>
+              <td>IsEmpty / IsFull</td>
+              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+            </tr>
+            <tr>
+              <td>Clear</td>
+              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Reset Pointers)</td>
+            </tr>
+            <tr>
+              <td>Space Complexity</td>
+              <td><span class="font-mono text-indigo-400 font-bold">O(n)</span> (Fixed Array)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Array vs Linked List Queue Card -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          🔄 Array Queue vs Linked List Queue
+        </h3>
+        <table class="table-custom">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Array Queue</th>
+              <th>Linked List Queue</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Size Limit</td>
+              <td><span class="text-rose-400 font-semibold">Fixed</span> (Pre-allocated)</td>
+              <td><span class="text-emerald-400 font-semibold">Dynamic</span> (Memory bound)</td>
+            </tr>
+            <tr>
+              <td>Enqueue / Dequeue</td>
+              <td><span class="text-emerald-400 font-semibold">O(1)</span></td>
+              <td><span class="text-emerald-400 font-semibold">O(1)</span></td>
+            </tr>
+            <tr>
+              <td>Memory Usage</td>
+              <td>Pre-allocated Array</td>
+              <td>Allocated per Node</td>
+            </tr>
+            <tr>
+              <td>Overflow Condition</td>
+              <td>When <code class="text-amber-400 font-mono">REAR == Capacity - 1</code></td>
+              <td>Only when system out of memory</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </section>
+
+    <!-- 5. C++ Code Block Implementation Card -->
+    <section class="glass-card">
+      <h3 class="section-title">
+        💻 C++ Class Implementation
+      </h3>
+      <div class="code-block-full">
+        <button id="copyCodeBtn" class="copy-btn">Copy Code</button>
+        <pre><code id="fullCppCodeBlock">#include &lt;iostream&gt;
+using namespace std;
+
+class Queue {
+private:
+    int a[5];
+    int front;
+    int rear;
+
+public:
+    Queue() {
+        front = -1;
+        rear = -1;
+    }
+
+    void enqueue(int value) {
+        if (rear == 4) {
+            cout &lt;&lt; "Queue Overflow! Queue is Full." &lt;&lt; endl;
+            return;
+        }
+        if (front == -1)
+            front = 0;
+        rear++;
+        a[rear] = value;
+        cout &lt;&lt; "Enqueued: " &lt;&lt; value &lt;&lt; endl;
+    }
+
+    void dequeue() {
+        if (front == -1 || front &gt; rear) {
+            cout &lt;&lt; "Queue Underflow! Queue is Empty." &lt;&lt; endl;
+            return;
+        }
+        cout &lt;&lt; "Dequeued: " &lt;&lt; a[front] &lt;&lt; endl;
+        front++;
+        if (front &gt; rear) {
+            front = -1;
+            rear = -1;
+        }
+    }
+
+    void peek() {
+        if (front == -1 || front &gt; rear) {
+            cout &lt;&lt; "Queue is Empty!" &lt;&lt; endl;
+            return;
+        }
+        cout &lt;&lt; "Front Element: " &lt;&lt; a[front] &lt;&lt; endl;
+    }
+
+    bool isEmpty() {
+        return front == -1 || front &gt; rear;
+    }
+
+    bool isFull() {
+        return rear == 4;
+    }
+};
+
+int main() {
+    Queue q;
+    q.enqueue(10);
+    q.enqueue(20);
+    q.enqueue(30);
+
+    q.peek();
+    q.dequeue();
+    q.peek();
+
+    return 0;
+}</code></pre>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <p>© 2026 Queue ADT (Array Implementation) Visualizer • Developed by Aniket Sonwane</p>
+    </footer>
+
+  </div>
+
+  <!-- JavaScript Application Files -->
+  <script src="queue-engine.js"></script>
+  <script src="queue-visualizer.js"></script>
+  <script src="queue-app.js"></script>
+</body>
+</html>

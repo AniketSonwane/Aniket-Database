@@ -3,7 +3,8 @@ const VAULT_CONFIG = {
   folderId: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
   folderName: "Public Vault",
   driveUrl: "https://drive.google.com/drive/folders/189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT?usp=sharing",
-  apiKey: atob("QUl6YVN5QTdLcU1vMU9XMFFzTC0xMy1TOWZZLVI5aXlhRlNkTDdJ")
+  apiKey: atob("QUl6YVN5QTdLcU1vMU9XMFFzTC0xMy1TOWZZLVI5aXlhRlNkTDdJ"),
+  uploadScriptUrl: "https://script.google.com/macros/s/AKfycbwRweKFf16EEF0BB3iBntBYhe0gYklvkCkMAZb9JJrXIWhRKGPajbg5YCtF78SBiL4/exec"
 };
 
 const vaultState = {
@@ -106,7 +107,28 @@ function deletePinKey() {
   }
 }
 
+function isVault2334LockedByAdmin() {
+  try {
+    const raw = localStorage.getItem("fm_pin_config");
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      if (cfg && cfg["2334"] && cfg["2334"].isLocked) return true;
+    }
+  } catch (err) {}
+  return false;
+}
+
 function submitPin() {
+  if (isVault2334LockedByAdmin()) {
+    if ($("pinMessage")) $("pinMessage").textContent = "🔒 Vault (2334) is currently locked by Admin.";
+    const card = document.querySelector(".pin-card");
+    if (card) {
+      card.classList.add("shake");
+      setTimeout(() => card.classList.remove("shake"), 400);
+    }
+    resetPin();
+    return;
+  }
   if (vaultState.pin === VAULT_CONFIG.pin) {
     unlockVault();
   } else {
@@ -121,6 +143,11 @@ function submitPin() {
 }
 
 function unlockVault() {
+  if (isVault2334LockedByAdmin()) {
+    lockVault();
+    if ($("pinMessage")) $("pinMessage").textContent = "🔒 Vault (2334) is currently locked by Admin.";
+    return;
+  }
   vaultState.isUnlocked = true;
   sessionStorage.setItem("vault_2334_unlocked", "true");
   if ($("pinScreen")) $("pinScreen").classList.add("hidden");
@@ -141,12 +168,14 @@ function unlockVault() {
 function lockVault() {
   vaultState.isUnlocked = false;
   sessionStorage.removeItem("vault_2334_unlocked");
-  resetPin();
-  if ($("pinScreen")) $("pinScreen").classList.remove("hidden");
-  if ($("vaultScreen")) $("vaultScreen").classList.add("hidden");
-  if ($("pinMessage")) $("pinMessage").textContent = "";
+  sessionStorage.removeItem("vault_1111_unlocked");
+  sessionStorage.removeItem("vault_3333_unlocked");
   closeFilePreviewModal();
+  if (typeof closeUploadModal === "function") closeUploadModal();
+  window.location.href = "./index.html";
 }
+window.lockVault = lockVault;
+window.exitVault = lockVault;
 
 async function getDriveItems(folderId) {
   if (!VAULT_CONFIG.apiKey) throw new Error("API key missing.");
@@ -353,6 +382,7 @@ function renderItems() {
               : `
                 <button class="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-600 dark:bg-indigo-950/80 dark:text-indigo-300 hover:bg-indigo-100 transition border border-indigo-200/60 dark:border-indigo-800/60" onclick="previewItemById('${escapeAttr(item.id)}')">Preview 👁️</button>
                 <button class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-300 hover:bg-emerald-100 transition border border-emerald-200/60 dark:border-emerald-800/60" onclick="downloadItemById('${escapeAttr(item.id)}')">Download ↓</button>
+                <button class="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-600 dark:bg-rose-950/80 dark:text-rose-300 hover:bg-rose-100 transition border border-rose-200/60 dark:border-rose-800/60" onclick="deleteItemById('${escapeAttr(item.id)}')">Delete 🗑️</button>
               `}
           </div>
         </div>`;
@@ -411,6 +441,10 @@ function previewItem(item) {
 
   if ($("previewDownloadBtn")) {
     $("previewDownloadBtn").onclick = () => downloadItem(item);
+  }
+
+  if ($("previewDeleteBtn")) {
+    $("previewDeleteBtn").onclick = () => deleteItem(item);
   }
 
   iframe.src = isCustomUpload ? (item.webViewLink || item.webContentLink) : `https://drive.google.com/file/d/${encodeURIComponent(item.id)}/preview`;
@@ -501,6 +535,15 @@ async function deleteItem(item) {
     vaultState.vaultIndex = vaultState.vaultIndex.filter(x => x.id !== item.id);
   }
 
+  if (VAULT_CONFIG.uploadScriptUrl && item.id && !item.id.startsWith("upload_")) {
+    fetch(VAULT_CONFIG.uploadScriptUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "delete", fileId: item.id })
+    }).catch(() => null);
+  }
+
   renderItems();
   closeFilePreviewModal();
   showToast(`Deleted "${filename}" 🗑️`);
@@ -512,20 +555,272 @@ document.addEventListener("DOMContentLoaded", () => {
   document.documentElement.classList.toggle("light", !isDark);
 
   const isAutoUnlock = window.location.search.includes("autounlock") || sessionStorage.getItem("vault_2334_unlocked") === "true";
-  if (isAutoUnlock) {
+  if (isAutoUnlock && !isVault2334LockedByAdmin()) {
     unlockVault();
+  } else {
+    lockVault();
   }
 
-  document.addEventListener("keydown", (e) => {
-    if (!vaultState.isUnlocked) {
-      if (e.key >= "0" && e.key <= "9") {
-        pressPinKey(e.key);
-      } else if (e.key === "Backspace") {
-        deletePinKey();
-      } else if (e.key === "Enter") {
-        submitPin();
-      }
+  setupDropZoneEvents();
+
+  window.addEventListener("fmSharedDataSynced", () => {
+    if (isVault2334LockedByAdmin()) {
+      lockVault();
     }
   });
 });
+
+let stagedFiles = [];
+
+function openUploadModal() {
+  const modal = $("uploadModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  stagedFiles = [];
+  renderStagedFiles();
+  updateUploadProgress(0, 0);
+}
+
+function closeUploadModal() {
+  const modal = $("uploadModal");
+  if (modal) modal.classList.add("hidden");
+  stagedFiles = [];
+  renderStagedFiles();
+  const fileInput = $("modalFileInput");
+  if (fileInput) fileInput.value = "";
+  updateUploadProgress(0, 0);
+}
+
+function triggerFileInputClick() {
+  const fileInput = $("modalFileInput");
+  if (fileInput) fileInput.click();
+}
+
+function handleModalFileSelect(e) {
+  const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
+
+  files.forEach(file => {
+    stagedFiles.push({
+      file: file,
+      name: file.name,
+      originalName: file.name,
+      size: file.size,
+      type: file.type
+    });
+  });
+
+  if (e.target) e.target.value = "";
+  renderStagedFiles();
+}
+
+function renderStagedFiles() {
+  const container = $("uploadStagingContainer");
+  const list = $("stagingFileList");
+  const countEl = $("stagingFileCount");
+  const confirmBtn = $("confirmUploadBtn");
+
+  if (!container || !list) return;
+
+  if (countEl) countEl.textContent = stagedFiles.length;
+
+  if (stagedFiles.length === 0) {
+    container.classList.add("hidden");
+    if (confirmBtn) confirmBtn.disabled = true;
+    return;
+  }
+
+  container.classList.remove("hidden");
+  if (confirmBtn) confirmBtn.disabled = false;
+
+  list.innerHTML = stagedFiles.map((item, idx) => {
+    const sizeKb = (item.size / 1024).toFixed(1);
+    const sizeMb = (item.size / (1024 * 1024)).toFixed(2);
+    const formattedSize = item.size > 1024 * 1024 ? `${sizeMb} MB` : `${sizeKb} KB`;
+
+    return `
+      <div class="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 transition group">
+        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-extrabold text-sm flex-shrink-0">
+          📄
+        </div>
+        <div class="flex-1 min-w-0">
+          <input type="text" value="${escapeHtml(item.name)}" onchange="updateStagedFileName(${idx}, this.value)" class="w-full text-xs font-extrabold text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 truncate" />
+          <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-1 truncate">Original: ${escapeHtml(item.originalName)} • ${formattedSize}</p>
+        </div>
+        <button type="button" onclick="removeStagedFile(${idx})" title="Remove file" class="flex h-8 w-8 items-center justify-center rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 font-bold transition flex-shrink-0">
+          ✕
+        </button>
+      </div>`;
+  }).join("");
+}
+
+function removeStagedFile(index) {
+  stagedFiles.splice(index, 1);
+  renderStagedFiles();
+}
+
+function updateStagedFileName(index, newName) {
+  if (stagedFiles[index]) {
+    stagedFiles[index].name = (newName || "").trim() || stagedFiles[index].originalName;
+  }
+}
+
+function updateUploadProgress(current, total) {
+  const container = $("uploadProgressContainer");
+  const fill = $("uploadProgressBarFill");
+  const percentText = $("uploadProgressPercentText");
+  const currentText = $("uploadProgressCurrent");
+  const totalText = $("uploadProgressTotal");
+
+  if (!container) return;
+
+  if (total === 0) {
+    container.classList.add("hidden");
+    if (fill) fill.style.width = "0%";
+    return;
+  }
+
+  container.classList.remove("hidden");
+  const pct = Math.min(100, Math.round((current / total) * 100));
+  if (fill) fill.style.width = `${pct}%`;
+  if (percentText) percentText.textContent = `${pct}%`;
+  if (currentText) currentText.textContent = Math.floor(current);
+  if (totalText) totalText.textContent = total;
+}
+
+function setupDropZoneEvents() {
+  const dropZone = $("dropZone");
+  if (!dropZone) return;
+
+  ["dragenter", "dragover", "dragleave", "drop"].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    }, false);
+  });
+
+  ["dragenter", "dragover"].forEach(eventName => {
+    dropZone.addEventListener(eventName, () => {
+      dropZone.classList.add("border-indigo-500", "bg-indigo-50/80", "dark:bg-indigo-950/60");
+    }, false);
+  });
+
+  ["dragleave", "drop"].forEach(eventName => {
+    dropZone.addEventListener(eventName, () => {
+      dropZone.classList.remove("border-indigo-500", "bg-indigo-50/80", "dark:bg-indigo-950/60");
+    }, false);
+  });
+
+  dropZone.addEventListener("drop", (e) => {
+    const dt = e.dataTransfer;
+    const files = Array.from(dt.files || []);
+    if (files.length > 0) {
+      files.forEach(file => {
+        stagedFiles.push({
+          file: file,
+          name: file.name,
+          originalName: file.name,
+          size: file.size,
+          type: file.type
+        });
+      });
+      renderStagedFiles();
+    }
+  }, false);
+}
+
+async function uploadToGoogleAppsScript(stagedItem, finalName, folderId, rawEmail, base64Data) {
+  if (!VAULT_CONFIG.uploadScriptUrl) return null;
+  const payload = {
+    action: "uploadFile",
+    filename: finalName,
+    name: finalName,
+    mimeType: stagedItem.type || "application/octet-stream",
+    base64: base64Data,
+    fileData: base64Data,
+    folderId: folderId,
+    uploaderEmail: rawEmail
+  };
+
+  const fetchPromise = fetch(VAULT_CONFIG.uploadScriptUrl, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload)
+  }).then(() => ({ status: "success", fileName: finalName })).catch(() => null);
+
+  const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 30000));
+  return Promise.race([fetchPromise, timeoutPromise]);
+}
+
+async function confirmStagedUpload() {
+  if (stagedFiles.length === 0) return;
+
+  const rawEmail = (vaultState.userEmail || localStorage.getItem("fm_user_email") || "Guest User").trim();
+  const folderId = vaultState.currentFolder.id;
+
+  const confirmBtn = $("confirmUploadBtn");
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = `<span>⏳</span> Uploading files...`;
+  }
+
+  const totalFiles = stagedFiles.length;
+  let completedCount = 0;
+  updateUploadProgress(0, totalFiles);
+
+  try {
+    for (let i = 0; i < stagedFiles.length; i++) {
+      const stagedItem = stagedFiles[i];
+      const finalName = stagedItem.name || stagedItem.originalName || "Uploaded_File";
+
+      updateUploadProgress(i + 0.3, totalFiles);
+
+      const fileData = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(stagedItem.file);
+      });
+
+      const base64Data = fileData ? fileData.split(",")[1] : "";
+
+      updateUploadProgress(i + 0.6, totalFiles);
+
+      if (fileData && VAULT_CONFIG.uploadScriptUrl) {
+        await uploadToGoogleAppsScript(stagedItem, finalName, folderId, rawEmail, base64Data);
+      }
+
+      completedCount++;
+      updateUploadProgress(completedCount, totalFiles);
+      showToast(`✓ Uploaded "${finalName}" (${completedCount}/${totalFiles})`);
+
+      if (typeof trackFileUpload === "function") {
+        trackFileUpload(rawEmail, finalName, "2334");
+      }
+    }
+  } catch (err) {
+    console.error("Batch upload error:", err);
+    showToast("⚠️ Upload error occurred.");
+  } finally {
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = `<span>📤</span> Upload Now`;
+    }
+    showToast(`✓ Upload complete! Syncing with Google Drive...`);
+    setTimeout(async () => {
+      closeUploadModal();
+      await loadFolder(folderId);
+      buildVaultIndex(folderId);
+    }, 1800);
+  }
+}
+
+window.openUploadModal = openUploadModal;
+window.closeUploadModal = closeUploadModal;
+window.triggerFileInputClick = triggerFileInputClick;
+window.handleModalFileSelect = handleModalFileSelect;
+window.removeStagedFile = removeStagedFile;
+window.updateStagedFileName = updateStagedFileName;
+window.confirmStagedUpload = confirmStagedUpload;
 

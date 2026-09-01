@@ -230,7 +230,12 @@ function submitPin() {
   }
 
   const entry = state.pin;
-  const pinConfig = (typeof adminState !== "undefined" && adminState.pinConfig) ? adminState.pinConfig : CONFIG.pinFolders;
+  let savedPinConfig = null;
+  try {
+    const rawSaved = localStorage.getItem("fm_pin_config");
+    if (rawSaved) savedPinConfig = JSON.parse(rawSaved);
+  } catch (err) {}
+  const pinConfig = (typeof adminState !== "undefined" && adminState.pinConfig) ? adminState.pinConfig : (savedPinConfig || CONFIG.pinFolders);
   let targetFolder = pinConfig[entry] || CONFIG.pinFolders[entry];
   if (entry === "1919" || entry === "2024") {
     targetFolder = { id: "ATTENDANCE_VAULT", name: "Student Attendance Vault" };
@@ -351,8 +356,10 @@ async function openManager(pin, targetFolder) {
     return;
   }
 
-  if (pin === "2334" || (state.root && state.root.id === "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT")) {
-    state.root.name = "Public Vault";
+  if (pin === "2334" || (state.root && (state.root.name === "Public Vault" || state.root.id === "2334" || state.root.id === "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT"))) {
+    sessionStorage.setItem("vault_2334_unlocked", "true");
+    window.location.href = "./vault2334.html?autounlock=true";
+    return;
   }
 
   if (pin === "1919" || pin === "2024" || state.root.id === "ATTENDANCE_VAULT") {
@@ -414,6 +421,9 @@ function exitVault() {
   state.currentFolder = null;
   state.items = [];
   state.breadcrumb = [];
+  sessionStorage.removeItem("vault_1111_unlocked");
+  sessionStorage.removeItem("vault_2334_unlocked");
+  sessionStorage.removeItem("vault_3333_unlocked");
   if ($("searchInput")) $("searchInput").value = "";
   $("managerScreen").classList.add("hidden");
   $("adminScreen").classList.add("hidden");
@@ -436,6 +446,9 @@ function logout() {
   state.currentFolder = null;
   state.items = [];
   state.breadcrumb = [];
+  sessionStorage.removeItem("vault_1111_unlocked");
+  sessionStorage.removeItem("vault_2334_unlocked");
+  sessionStorage.removeItem("vault_3333_unlocked");
   if ($("searchInput")) $("searchInput").value = "";
   $("managerScreen").classList.add("hidden");
   $("pinScreen").classList.remove("hidden");
@@ -2836,6 +2849,19 @@ async function deleteItem(item) {
   }
 }
 window.deleteItem = deleteItem;
+
+window.addEventListener("fmSharedDataSynced", (e) => {
+  const pinConfig = (e.detail && e.detail.pinConfig) ? e.detail.pinConfig : null;
+  if (!pinConfig || !state.pin) return;
+  const rawEmail = (state.userEmail || localStorage.getItem("fm_user_email") || "").trim().toLowerCase();
+  const adminEmail = (typeof _SEC_STORE !== "undefined" && _SEC_STORE.e) ? _secDec(_SEC_STORE.e).toLowerCase() : "";
+  const isAdminUser = (rawEmail === adminEmail || rawEmail === "2007aniketsonwane@gmail.com");
+
+  if (!isAdminUser && pinConfig[state.pin] && pinConfig[state.pin].isLocked) {
+    if (typeof exitVault === "function") exitVault();
+    if ($("pinMessage")) $("pinMessage").textContent = `🔒 Vault (${state.pin}) is currently locked by Admin.`;
+  }
+});
 
 
 

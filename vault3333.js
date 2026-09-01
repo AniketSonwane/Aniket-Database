@@ -130,6 +130,7 @@ function exitVault() {
   closeUploadModal();
   window.location.href = "./index.html";
 }
+window.exitVault = exitVault;
 
 // Drive Item Fetcher
 async function getDriveItems(folderId) {
@@ -509,9 +510,12 @@ async function uploadToGoogleAppsScript(stagedItem, finalName, folderId, rawEmai
   if (!VAULT_CONFIG.uploadScriptUrl) return null;
 
   const payload = {
+    action: "uploadFile",
     filename: finalName,
+    name: finalName,
     mimeType: stagedItem.type || "application/octet-stream",
     base64: base64Data,
+    fileData: base64Data,
     folderId: folderId,
     uploaderEmail: rawEmail
   };
@@ -523,8 +527,7 @@ async function uploadToGoogleAppsScript(stagedItem, finalName, folderId, rawEmai
     body: JSON.stringify(payload)
   }).then(() => ({ status: "success", fileName: finalName })).catch(() => null);
 
-  // Timeout after 2.5 seconds so upload loop never gets stuck
-  const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 2500));
+  const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 30000));
 
   return Promise.race([fetchPromise, timeoutPromise]);
 }
@@ -539,12 +542,6 @@ async function confirmStagedUpload() {
   }
 
   const folderId = vaultState.currentFolder.id;
-  const customKey = "fm_class_uploads_" + folderId;
-  let customItems = [];
-  try {
-    const raw = localStorage.getItem(customKey);
-    if (raw) customItems = JSON.parse(raw);
-  } catch(e) {}
 
   const confirmBtn = $("confirmUploadBtn");
   if (confirmBtn) {
@@ -572,27 +569,10 @@ async function confirmStagedUpload() {
 
       updateUploadProgress(i + 0.6, totalFiles);
 
-      let driveResult = null;
       if (fileData && VAULT_CONFIG.uploadScriptUrl) {
         const base64Data = fileData.split(',')[1] || "";
-        driveResult = await uploadToGoogleAppsScript(stagedItem, finalName, folderId, rawEmail, base64Data);
+        await uploadToGoogleAppsScript(stagedItem, finalName, folderId, rawEmail, base64Data);
       }
-
-      const customItem = {
-        id: (driveResult && driveResult.fileId) ? driveResult.fileId : ("upload_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7)),
-        name: finalName,
-        size: stagedItem.size,
-        mimeType: stagedItem.type || "application/octet-stream",
-        modifiedTime: new Date().toISOString(),
-        folderId: folderId,
-        uploadedBy: rawEmail,
-        uploaderEmail: rawEmail,
-        webContentLink: (driveResult && driveResult.fileUrl) ? driveResult.fileUrl : (fileData || ""),
-        webViewLink: (driveResult && driveResult.fileUrl) ? driveResult.fileUrl : (fileData || "")
-      };
-
-      customItems.unshift(customItem);
-      localStorage.setItem(customKey, JSON.stringify(customItems));
 
       completedCount++;
       updateUploadProgress(completedCount, totalFiles);
@@ -604,7 +584,7 @@ async function confirmStagedUpload() {
     }
   } catch (err) {
     console.error("Batch upload error:", err);
-    showToast("⚠️ Upload processed with local copy.");
+    showToast("⚠️ Upload error occurred.");
   } finally {
     if (confirmBtn) {
       confirmBtn.disabled = false;
@@ -970,6 +950,17 @@ function setupDropZoneEvents() {
   }, false);
 }
 
+function isVault3333LockedByAdmin() {
+  try {
+    const raw = localStorage.getItem("fm_pin_config");
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      if (cfg && cfg["3333"] && cfg["3333"].isLocked) return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const isDark = (localStorage.getItem("fm_theme") || "dark") === "dark";
   document.documentElement.classList.toggle("dark", isDark);
@@ -977,9 +968,10 @@ document.addEventListener("DOMContentLoaded", () => {
   updateThemeBtnUI();
 
   const isUnlocked = sessionStorage.getItem("vault_3333_unlocked") === "true";
+  const isLockedByAdmin = isVault3333LockedByAdmin();
   
-  if (!isUnlocked) {
-    // If not unlocked via main page PIN 3333, redirect back to index.html
+  if (!isUnlocked || isLockedByAdmin) {
+    sessionStorage.removeItem("vault_3333_unlocked");
     window.location.href = "./index.html";
     return;
   }
@@ -993,4 +985,11 @@ document.addEventListener("DOMContentLoaded", () => {
   setupDropZoneEvents();
   loadFolder(vaultState.currentFolder.id);
   buildVaultIndex(vaultState.currentFolder.id);
+
+  window.addEventListener("fmSharedDataSynced", () => {
+    if (isVault3333LockedByAdmin()) {
+      sessionStorage.removeItem("vault_3333_unlocked");
+      window.location.href = "./index.html";
+    }
+  });
 });

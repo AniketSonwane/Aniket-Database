@@ -47,7 +47,10 @@ const NOTES_DATA = {
         title: "Linear Data Structures",
         icon: "📚",
         topics: [
-          { id: "Stack_ADT", name: "Stack ADT", desc: "Interactive C++ Stack debugger, LIFO visualizer, memory rep & theory", localUrl: "./Aniket-Notes/DSA/Stack_ADT/stackadt.html" }
+          { id: "Stack_ADT_Array", name: "Stack (Array Implementation)", desc: "Interactive C++ Stack debugger, LIFO visualizer, memory layout & theory", localUrl: "./Aniket-Notes/DSA/Stack_ADT_Array/stackadt.html" },
+          { id: "Stack_ADT_Linked_List", name: "Stack (Linked List Implementation)", desc: "Dynamic node-based LIFO stack operations, top pointer & visualizer", localUrl: "./Aniket-Notes/DSA/Stack_ADT_Linked_List/stack.html" },
+          { id: "Queue_ADT_Array", name: "Queue (Array / Circular Implementation)", desc: "FIFO queue operations, front/rear pointers, array representation & visualizer", localUrl: "./Aniket-Notes/DSA/Queue_ADT_Array/queue.html" },
+          { id: "Queue_ADT_Linked_List", name: "Queue (Linked List Implementation)", desc: "Dynamic node-based FIFO queue operations, front & rear pointer visualizer", localUrl: "./Aniket-Notes/DSA/Queue_ADT_Linked_List/queue.html" }
         ]
       }
     ]
@@ -129,13 +132,13 @@ function unlockVaultUI() {
 function lockVault() {
   vaultState.isUnlocked = false;
   sessionStorage.removeItem("vault_1111_unlocked");
-  resetPin();
-  $("pinScreen").classList.remove("hidden");
-  $("vaultScreen").classList.add("hidden");
-  if ($("pinMessage")) $("pinMessage").textContent = "";
+  if ($("pinScreen")) $("pinScreen").classList.remove("hidden");
+  if ($("vaultScreen")) $("vaultScreen").classList.add("hidden");
   closeFilePreviewModal();
   closeSettingsModal();
+  window.location.href = "./index.html";
 }
+window.lockVault = lockVault;
 
 function renderAniketNotesHome() {
   vaultState.currentSubject = null;
@@ -363,12 +366,29 @@ function closeSettingsModal() {
   }
 }
 
+function applyTheme(theme) {
+  const isLight = theme === "light";
+  document.documentElement.classList.toggle("dark", !isLight);
+  document.documentElement.classList.toggle("dark-mode", !isLight);
+  document.documentElement.classList.toggle("light", isLight);
+  document.documentElement.classList.toggle("light-mode", isLight);
+
+  if (document.body) {
+    document.body.classList.toggle("dark", !isLight);
+    document.body.classList.toggle("dark-mode", !isLight);
+    document.body.classList.toggle("light", isLight);
+    document.body.classList.toggle("light-mode", isLight);
+  }
+
+  localStorage.setItem("fm_theme", theme);
+  localStorage.setItem("theme", theme);
+  localStorage.setItem("aniket_theme", theme);
+}
+
 function toggleTheme() {
-  const isDark = document.documentElement.classList.contains("dark");
-  const newTheme = isDark ? "light" : "dark";
-  document.documentElement.classList.toggle("dark", !isDark);
-  document.documentElement.classList.toggle("light", isDark);
-  localStorage.setItem("fm_theme", newTheme);
+  const isCurrentlyLight = document.documentElement.classList.contains("light") || document.documentElement.classList.contains("light-mode");
+  const newTheme = isCurrentlyLight ? "dark" : "light";
+  applyTheme(newTheme);
   showToast(`Theme switched to ${newTheme} mode`);
 }
 
@@ -390,11 +410,37 @@ async function loadDriveFiles() {
   }
 }
 
+function isVault1111LockedByAdmin() {
+  try {
+    const raw = localStorage.getItem("fm_pin_config");
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      if (cfg && cfg["1111"] && cfg["1111"].isLocked) return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  const isDark = (localStorage.getItem("fm_theme") || "dark") === "dark";
-  document.documentElement.classList.toggle("dark", isDark);
-  document.documentElement.classList.toggle("light", !isDark);
+  const savedTheme = localStorage.getItem("fm_theme") || localStorage.getItem("theme") || localStorage.getItem("aniket_theme") || "dark";
+  applyTheme(savedTheme);
+
+  const isUnlocked = sessionStorage.getItem("vault_1111_unlocked") === "true";
+  const isLockedByAdmin = isVault1111LockedByAdmin();
+
+  if (!isUnlocked || isLockedByAdmin) {
+    sessionStorage.removeItem("vault_1111_unlocked");
+    window.location.href = "./index.html";
+    return;
+  }
 
   renderAniketNotesHome();
   loadDriveFiles();
+
+  window.addEventListener("fmSharedDataSynced", () => {
+    if (isVault1111LockedByAdmin()) {
+      sessionStorage.removeItem("vault_1111_unlocked");
+      window.location.href = "./index.html";
+    }
+  });
 });

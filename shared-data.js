@@ -71,6 +71,12 @@ async function loadSharedData(showError = false) {
         if (pinConfig) adminState.pinConfig = pinConfig;
       }
 
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("fmSharedDataSynced", {
+          detail: { pinConfig, blockedEmails, exams, timetable, attendance }
+        }));
+      }
+
       return { exams, timetable, activityLogs, blockedEmails, pinConfig };
     } catch (error) {
       console.warn("Global data sync failed:", error);
@@ -144,17 +150,7 @@ function logSharedActivity(logData) {
   const vault = String(payload.vault || "").trim().toLowerCase();
   const item = String(payload.item || "").trim().toLowerCase();
 
-  if (
-    !email ||
-    email.includes("guest") ||
-    email === "guest user" ||
-    email === "2007aniketsonwane@gmail.com" ||
-    vault === "1358" ||
-    vault === "2334" ||
-    vault === "1111" ||
-    vault.includes("public vault") ||
-    vault.includes("aniket-notes")
-  ) {
+  if (!email || email.includes("guest") || email === "guest user" || email === "2007aniketsonwane@gmail.com") {
     return;
   }
 

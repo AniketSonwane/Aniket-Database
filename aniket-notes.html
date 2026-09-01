@@ -36,7 +36,7 @@
       color: #f8fafc;
     }
     
-    html.light body, .light body {
+    html.light body, html.light-mode body, body.light, body.light-mode {
       background:
         radial-gradient(circle at 10% 10%, rgba(99, 102, 241, .09), transparent 36%),
         radial-gradient(circle at 90% 20%, rgba(168, 85, 247, .08), transparent 36%),
@@ -51,10 +51,62 @@
       -webkit-backdrop-filter: blur(24px);
       backdrop-filter: blur(24px);
     }
-    html.light .glass, .light .glass {
-      background: rgba(255, 255, 255, 0.90) !important;
-      border-color: #e2e8f0 !important;
-      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.06) !important;
+    html.light .glass, html.light-mode .glass, body.light .glass, body.light-mode .glass {
+      background: rgba(255, 255, 255, 0.94) !important;
+      border-color: #cbd5e1 !important;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08) !important;
+    }
+
+    /* VS Code Dark+ Theme & Syntax Highlighting Tokens */
+    .code-block-full,
+    .code-container,
+    div.code-block-full,
+    div.code-container {
+      position: relative;
+      background: #1e1e1e !important;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+      padding: 20px;
+      font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      margin-top: 12px;
+      color: #d4d4d4 !important;
+    }
+
+    html.light .code-block-full, html.light-mode .code-block-full, body.light .code-block-full, body.light-mode .code-block-full,
+    html.light .code-container, html.light-mode .code-container, body.light .code-container, body.light-mode .code-container {
+      background: #1e1e1e !important;
+      border-color: rgba(255, 255, 255, 0.15) !important;
+      color: #d4d4d4 !important;
+    }
+
+    .syn-kw { color: #569cd6 !important; font-weight: 600; }
+    .syn-ctrl { color: #c586c0 !important; font-weight: 600; }
+    .syn-type { color: #4ec9b0 !important; font-weight: 600; }
+    .syn-fn { color: #dcdcaa !important; font-weight: 600; }
+    .syn-str { color: #ce9178 !important; }
+    .syn-pp { color: #c586c0 !important; font-weight: 600; }
+    .syn-num { color: #b5cea8 !important; }
+    .syn-cm { color: #6a9955 !important; font-style: italic; }
+    .syn-var { color: #9cdcfe !important; }
+    .syn-op { color: #d4d4d4 !important; }
+
+    html.light .copy-btn, html.light-mode .copy-btn, body.light .copy-btn, body.light-mode .copy-btn,
+    .copy-btn {
+      background: rgba(255, 255, 255, 0.12) !important;
+      border: 1px solid rgba(255, 255, 255, 0.25) !important;
+      color: #ffffff !important;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    html.light .copy-btn:hover, html.light-mode .copy-btn:hover, body.light .copy-btn:hover, body.light-mode .copy-btn:hover,
+    .copy-btn:hover {
+      background: #007acc !important;
+      border-color: #007acc !important;
+      color: #ffffff !important;
     }
 
     .pin-card {
@@ -115,6 +167,9 @@
       </div>
 
       <div class="flex items-center gap-2">
+        <button id="exitVaultBtn" onclick="lockVault()" type="button" class="px-3.5 py-2 rounded-xl font-black text-xs bg-amber-500/10 text-amber-600 dark:text-amber-300 hover:bg-amber-500/20 border border-amber-400/30 transition">
+          Exit Vault 🚪
+        </button>
         <button type="button" onclick="toggleTheme()" class="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
           🌙
         </button>
@@ -318,6 +373,7 @@
   <!-- Toast Notification -->
   <div id="toast" class="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 translate-y-4 rounded-2xl border border-slate-700/60 bg-slate-900/90 px-5 py-3 text-sm font-medium text-white opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-300"></div>
 
+  <script src="./shared-data.js"></script>
   <script src="./aniket-notes.js"></script>
 </body>
 </html>

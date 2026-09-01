@@ -108,19 +108,13 @@ function savePinConfig() {
 function isGuestOrAdminEmail(email, vaultOrPin) {
   const e = String(email || "").trim().toLowerCase();
   const adminEmail = (typeof _ADMIN_SEC !== "undefined" && _ADMIN_SEC.e ? _adminDec(_ADMIN_SEC.e) : "2007aniketsonwane@gmail.com").toLowerCase();
-  const v = String(vaultOrPin || "").trim().toLowerCase();
 
   return (
     !e ||
     e.includes("guest") ||
     e === "guest user" ||
     e === adminEmail ||
-    e === "2007aniketsonwane@gmail.com" ||
-    v === "1358" ||
-    v === "2334" ||
-    v === "1111" ||
-    v.includes("public vault") ||
-    v.includes("aniket-notes")
+    e === "2007aniketsonwane@gmail.com"
   );
 }
 
@@ -209,7 +203,6 @@ function trackUserDownload(email, fileName) {
 }
 
 function getParsedActivityLogs() {
-  const isSharedConfigured = typeof sharedDataConfigured === "function" && sharedDataConfigured();
   let sheetLogs = [];
   try {
     const raw = localStorage.getItem("fm_shared_activity_logs") || localStorage.getItem("fm_activity_logs");
@@ -220,34 +213,47 @@ function getParsedActivityLogs() {
   } catch (e) {}
 
   const combined = [];
+  const seenKeys = new Set();
 
+  function processLog(time, email, vault, item) {
+    const cleanEmail = String(email || "").trim();
+    if (!cleanEmail || isGuestOrAdminEmail(cleanEmail, vault)) return;
+
+    const cleanVault = String(vault || "Vault").trim();
+    const cleanItem = String(item || "Access Vault").trim();
+    const key = `${cleanEmail.toLowerCase()}_${cleanItem.toLowerCase()}_${cleanVault.toLowerCase()}_${String(time).substring(0, 16)}`;
+
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      combined.push({
+        timestamp: time,
+        email: cleanEmail,
+        vault: cleanVault,
+        item: cleanItem
+      });
+    }
+  }
+
+  // 1. Process Google Sheets logs
   sheetLogs.forEach(entry => {
     if (!entry) return;
     const time = entry["Timestamp"] || entry.timestamp || entry.time || new Date().toISOString();
     const email = entry["Login ID (Email)"] || entry.email || entry.loginId || entry.user || "";
     const vault = entry["Vault Name"] || entry.vault || entry.vaultName || "Vault";
-    const item = entry["Action / Downloaded Item"] || entry.item || entry.action || entry.downloadItem || "Access Vault";
+    const item = entry["Action / Downloaded Item"] || entry.item || entry.action || entry.downloadItem || entry["Action"] || entry["Item"] || entry["Activity"] || "Access Vault";
 
-    if (email && !isGuestOrAdminEmail(email, vault)) {
-      combined.push({
-        timestamp: time,
-        email: String(email).trim(),
-        vault: String(vault).trim(),
-        item: String(item).trim()
-      });
-    }
+    processLog(time, email, vault, item);
   });
 
-  // Only include local visitor logs if shared Google Sheets data is NOT configured
-  if (!isSharedConfigured && adminState.visitorLogs && Array.isArray(adminState.visitorLogs)) {
+  // 2. Process local visitor logs
+  if (adminState.visitorLogs && Array.isArray(adminState.visitorLogs)) {
     adminState.visitorLogs.forEach(log => {
-      if (!log || !log.email || isGuestOrAdminEmail(log.email, log.pin)) return;
-      combined.push({
-        timestamp: log.timestamp || new Date(log.id || Date.now()).toISOString(),
-        email: String(log.email).trim(),
-        vault: String(log.pin || "1717"),
-        item: `Login / Access Vault (${log.pin || "1717"})`
-      });
+      if (!log || !log.email) return;
+      const time = log.timestamp || new Date(log.id || Date.now()).toISOString();
+      const item = log.item || log.action || `Login / Access Vault (${log.pin || "1717"})`;
+      const vault = log.vault || formatVaultDisplayName(log.pin || "3333");
+
+      processLog(time, log.email, vault, item);
     });
   }
 
@@ -262,7 +268,10 @@ function renderAdminDashboard() {
   const uniqueUsers = new Set(logs.map(l => l.email.toLowerCase())).size;
   const totalVisits = logs.filter(l => (l.item || "").toLowerCase().includes("login") || (l.item || "").toLowerCase().includes("access")).length || logs.length;
   const totalDownloads = logs.filter(l => (l.item || "").toLowerCase().includes("download")).length;
-  const totalUploads = logs.filter(l => (l.item || "").toLowerCase().includes("upload")).length;
+  const totalUploads = logs.filter(l => {
+    const itemStr = (l.item || "").toLowerCase();
+    return itemStr.includes("upload") || itemStr.includes("uploaded");
+  }).length;
   const activePinsCount = Object.keys(adminState.pinConfig).length + 1;
 
   if (document.getElementById("statTotalUsers")) document.getElementById("statTotalUsers").textContent = uniqueUsers.toLocaleString();
@@ -305,7 +314,7 @@ function renderUploadsStatsTable(filterQuery = "") {
   const logs = getParsedActivityLogs();
   const uploadLogs = logs.filter(l => {
     const itemStr = (l.item || "").toLowerCase();
-    return itemStr.includes("upload");
+    return itemStr.includes("upload") || itemStr.includes("uploaded");
   });
 
   const query = filterQuery.toLowerCase().trim();
@@ -392,8 +401,10 @@ function trackFileUpload(email, fileName, vaultPin = "3333") {
     id: Date.now(),
     email: email,
     pin: vaultPin,
+    vault: formatVaultDisplayName(vaultPin),
     timestamp: now,
-    action: actionItem
+    action: actionItem,
+    item: actionItem
   };
 
   adminState.visitorLogs.unshift(newLog);
