@@ -52,6 +52,13 @@ const NOTES_DATA = {
           { id: "Queue_ADT_Array", name: "Queue (Array / Circular Implementation)", desc: "FIFO queue operations, front/rear pointers, array representation & visualizer", localUrl: "./Aniket-Notes/DSA/Queue_ADT_Array/queue.html" },
           { id: "Queue_ADT_Linked_List", name: "Queue (Linked List Implementation)", desc: "Dynamic node-based FIFO queue operations, front & rear pointer visualizer", localUrl: "./Aniket-Notes/DSA/Queue_ADT_Linked_List/queue.html" }
         ]
+      },
+      {
+        title: "Stack Applications & Parsing",
+        icon: "⚡",
+        topics: [
+          { id: "Inflix_To_Postflix", name: "Infix to Postfix Conversion", desc: "Stack-based expression parsing, operator precedence, step-by-step conversion visualizer & C++ code", localUrl: "./Aniket-Notes/DSA/Inflix_To_Postflix/infixtopostfix.html" }
+        ]
       }
     ]
   }
