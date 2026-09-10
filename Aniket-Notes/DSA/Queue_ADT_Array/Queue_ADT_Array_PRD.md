@@ -697,7 +697,7 @@ Display the following simple C++ implementation with syntax highlighting:
 using namespace std;
 
 class Queue {
-    int a[5];
+    int arr[100];
     int front;
     int rear;
 
@@ -707,26 +707,27 @@ public:
         rear = -1;
     }
 
+    // Insert element
     void enqueue(int value) {
-        if (rear == 4) {
-            cout << "Queue Overflow";
+        if (rear == 99) {
+            cout << "Queue Overflow" << endl;
             return;
         }
 
         if (front == -1)
             front = 0;
 
-        rear++;
-        a[rear] = value;
+        arr[++rear] = value;
     }
 
+    // Remove element
     void dequeue() {
         if (front == -1 || front > rear) {
-            cout << "Queue Underflow";
+            cout << "Queue Underflow" << endl;
             return;
         }
 
-        cout << "Deleted: " << a[front];
+        cout << "Deleted: " << arr[front] << endl;
         front++;
 
         if (front > rear) {
@@ -735,21 +736,27 @@ public:
         }
     }
 
+    // Show front element
     void peek() {
         if (front == -1) {
-            cout << "Queue is Empty";
+            cout << "Queue is Empty" << endl;
             return;
         }
 
-        cout << "Front Element: " << a[front];
+        cout << "Front: " << arr[front] << endl;
     }
 
-    bool isEmpty() {
-        return front == -1;
-    }
+    // Display queue
+    void display() {
+        if (front == -1) {
+            cout << "Queue is Empty" << endl;
+            return;
+        }
 
-    bool isFull() {
-        return rear == 4;
+        for (int i = front; i <= rear; i++)
+            cout << arr[i] << " ";
+
+        cout << endl;
     }
 };
 
@@ -759,10 +766,18 @@ int main() {
     q.enqueue(10);
     q.enqueue(20);
     q.enqueue(30);
+    q.enqueue(40);
 
-    q.dequeue();
+    cout << "Queue: ";
+    q.display();
 
     q.peek();
+
+    q.dequeue();
+    q.dequeue();
+
+    cout << "Queue after dequeue: ";
+    q.display();
 
     return 0;
 }

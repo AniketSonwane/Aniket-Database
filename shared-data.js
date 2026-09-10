@@ -230,11 +230,7 @@ function parseAttendanceCSV(csvText) {
     return result;
   }
 
-  const headers = parseCSVLine(lines[0]);
-  const mainSubjectCols = ["CAO", "DSA", "DSA Lab", "ED", "DMGT", "ES", "FCC Lab", "PCC Lab"];
-  const mdmSubjectCols = ["WD", "WD Lab", "MWD", "MWD Lab", "BA", "IoT", "IoT Lab", "EF"];
-  const openElectiveCols = ["SPS", "EDP", "EST", "DCD"];
-
+  const rawHeaders = parseCSVLine(lines[0]);
   const parsedStudents = [];
 
   for (let i = 1; i < lines.length; i++) {
@@ -249,28 +245,59 @@ function parseAttendanceCSV(csvText) {
     const mdm = {};
     const openElective = {};
 
-    headers.forEach((h, colIdx) => {
-      let cleanH = h.replace(/^(Main Subject|MDM|Open elective|Student details srn|Student details)\s*/i, "").trim();
-      if (/^mwd$/i.test(cleanH)) cleanH = "WD";
-      if (/^mwd\s*lab$/i.test(cleanH)) cleanH = "WD Lab";
-      if (/^wd\s*lab$/i.test(cleanH)) cleanH = "WD Lab";
-
+    rawHeaders.forEach((rawH, colIdx) => {
+      const h = rawH.trim();
       const valStr = row[colIdx];
-      if (valStr !== undefined && valStr !== null && valStr !== "") {
-        const valNum = parseFloat(valStr);
-        if (!isNaN(valNum)) {
-          if (mainSubjectCols.some(m => cleanH.toLowerCase() === m.toLowerCase())) {
-            main[cleanH] = valNum;
-          } else if (mdmSubjectCols.some(m => cleanH.toLowerCase() === m.toLowerCase())) {
-            mdm[cleanH] = valNum;
-          } else if (openElectiveCols.some(o => cleanH.toLowerCase() === o.toLowerCase())) {
-            openElective[cleanH] = valNum;
-          }
-        }
+      if (valStr === undefined || valStr === null || valStr === "") return;
+      const valNum = parseFloat(valStr);
+      if (isNaN(valNum)) return;
+
+      const hLower = h.toLowerCase();
+
+      // Skip Average column in subject loop
+      if (colIdx === rawHeaders.length - 1 || hLower.includes("average")) {
+        return;
+      }
+
+      // MDM Theory (Col 10 or 'MDM Theory' / 'MDM-Theory' / 'MDM')
+      if (hLower === "mdm theory" || hLower === "mdm-theory" || (colIdx === 10 && hLower.includes("theory"))) {
+        mdm["MDM-Theory"] = valNum;
+      }
+      // MDM Lab (Col 11 or 'LAB' / 'MDM Lab' / 'MDM-Lab')
+      else if (hLower === "lab" || hLower === "mdm lab" || hLower === "mdm-lab" || (colIdx === 11 && (hLower === "lab" || hLower.includes("lab")))) {
+        mdm["MDM-Lab"] = valNum;
+      }
+      // Open Elective (Col 12 or 'Open elective Theory' / 'Open-Elective' / 'Open Elective' / 'OE')
+      else if (hLower.includes("open elective") || hLower.includes("open-elective") || hLower === "oe" || hLower === "oe theory" || colIdx === 12) {
+        openElective["Open-Elective"] = valNum;
+      }
+      // Main Subjects (CAO, DSA, DSA Lab, ED, DMGT, ES, FCC Lab, PCC Lab)
+      else if (hLower.includes("cao")) {
+        main["CAO"] = valNum;
+      } else if (hLower.includes("dsa") && hLower.includes("lab")) {
+        main["DSA Lab"] = valNum;
+      } else if (hLower.includes("dsa")) {
+        main["DSA"] = valNum;
+      } else if (hLower === "ed" || hLower.includes("ed ") || hLower.startsWith("ed")) {
+        main["ED"] = valNum;
+      } else if (hLower.includes("dmgt")) {
+        main["DMGT"] = valNum;
+      } else if (hLower === "es" || hLower.includes("es ") || hLower.startsWith("es")) {
+        main["ES"] = valNum;
+      } else if (hLower.includes("fcc") || hLower.includes("pcc")) {
+        main["FCC Lab"] = valNum;
+      }
+      // Backward compatibility fallback for legacy named subjects
+      else if (["wd", "mwd", "ba", "iot", "ef"].includes(hLower)) {
+        mdm["MDM-Theory"] = valNum;
+      } else if (["wd lab", "mwd lab", "iot lab"].includes(hLower)) {
+        mdm["MDM-Lab"] = valNum;
+      } else if (["sps", "edp", "est", "dcd"].includes(hLower)) {
+        openElective["Open-Elective"] = valNum;
       }
     });
 
-    const avgStr = row[headers.length - 1] || row[20] || "";
+    const avgStr = row[rawHeaders.length - 1] || row[13] || "";
     const avgNum = parseFloat(avgStr);
 
     parsedStudents.push({
@@ -279,7 +306,7 @@ function parseAttendanceCSV(csvText) {
       main,
       mdm,
       openElective,
-      average: !isNaN(avgNum) ? avgNum : 0
+      average: !isNaN(avgNum) ? parseFloat(avgNum.toFixed(2)) : 0
     });
   }
 
@@ -304,67 +331,67 @@ async function fetchLiveGoogleSheetAttendance() {
 }
 
 const DEFAULT_ATTENDANCE = [
-  {"usn":"CS25128","name":"ADITI KARAN","main":{"CAO":80,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":71.43,"FCC Lab":100},"mdm":{"EF":100},"openElective":{},"average":92.23},
-  {"usn":"CS25129","name":"ADITYA YOGESH BHURSE","main":{"CAO":90,"DSA":66.67,"DSA Lab":100,"ED":57.1,"DMGT":78.95,"ES":71.43,"FCC Lab":100},"mdm":{"EF":40},"openElective":{},"average":75.52},
-  {"usn":"CS25130","name":"AKANSHA PRASHANT SHARMA","main":{"CAO":40,"DSA":33.33,"DSA Lab":50,"ED":42.9,"DMGT":42.11,"ES":28.57,"FCC Lab":50},"mdm":{"EF":20},"openElective":{},"average":38.36},
-  {"usn":"CS25131","name":"ANIKET UMESH SONWANE","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":85.71,"FCC Lab":100},"mdm":{"WD":100,"WD Lab":100},"openElective":{},"average":97.83},
-  {"usn":"CS25132","name":"ANKIT ASHWIN ITANKAR","main":{"CAO":90,"DSA":91.67,"DSA Lab":100,"ED":57.1,"DMGT":78.95,"ES":100,"FCC Lab":75},"mdm":{"BA":72.73},"openElective":{},"average":83.18},
-  {"usn":"CS25133","name":"ASAWARI SURESH CHICHMALKAR","main":{"CAO":90,"DSA":91.67,"DSA Lab":100,"ED":85.7,"DMGT":84.21,"ES":57.14,"FCC Lab":100},"mdm":{"EF":70},"openElective":{},"average":84.84},
-  {"usn":"CS25134","name":"ATHARVA BALU JADHAV","main":{"CAO":80,"DSA":91.67,"DSA Lab":100,"ED":85.7,"DMGT":84.21,"ES":85.71,"FCC Lab":75},"mdm":{"EF":100},"openElective":{"EST":90},"average":88.03},
-  {"usn":"CS25135","name":"ATHARVA PRADIP PANNASE","main":{"CAO":40,"DSA":75,"DSA Lab":75,"ED":71.4,"DMGT":68.42,"ES":71.43,"FCC Lab":50},"mdm":{"EF":40},"openElective":{"DCD":80},"average":63.47},
-  {"usn":"CS25136","name":"AYAN SHOUKT SAYYED SAYYEDAYAN ALI","main":{"CAO":90,"DSA":91.67,"DSA Lab":100,"ED":85.7,"DMGT":94.74,"ES":100,"FCC Lab":75},"mdm":{"EF":80},"openElective":{},"average":89.64},
-  {"usn":"CS25137","name":"AYUSHI GADGE","main":{"CAO":90,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":89.47,"ES":85.71,"FCC Lab":100},"mdm":{"BA":90.91},"openElective":{},"average":93.47},
-  {"usn":"CS25138","name":"BINA MUKESH TANTI","main":{"CAO":100,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":100,"ES":100,"FCC Lab":75},"mdm":{"EF":100},"openElective":{},"average":95.83},
-  {"usn":"CS25139","name":"GANESH VYANKATI LINGALWAR","main":{"CAO":80,"DSA":91.67,"DSA Lab":100,"ED":85.7,"DMGT":89.47,"ES":85.71,"FCC Lab":100},"mdm":{"EF":50},"openElective":{},"average":85.32},
-  {"usn":"CS25140","name":"GAURIKA HEMANT PAWADE","main":{"CAO":90,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":85.71,"FCC Lab":75},"mdm":{"WD":80,"WD Lab":100},"openElective":{},"average":91.72},
-  {"usn":"CS25141","name":"HAMROZ QUAMUDDIN ANSARI","main":{"CAO":90,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":100,"ES":71.43,"FCC Lab":100},"mdm":{"EF":100},"openElective":{"EDP":60},"average":90.34},
-  {"usn":"CS25142","name":"HARSHAL RAJKUMAR HARINKHEDE","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":100,"FCC Lab":100},"mdm":{"EF":100},"openElective":{},"average":99.34},
-  {"usn":"CS25143","name":"HIMANEE MAHESH DHARMIK","main":{"CAO":100,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":89.47,"ES":71.43,"FCC Lab":100},"mdm":{"EF":100},"openElective":{},"average":94.07},
-  {"usn":"CS25144","name":"HIMANSHU ANJANIKUMAR SINGH","main":{"CAO":80,"DSA":75,"DSA Lab":100,"ED":85.7,"DMGT":78.95,"ES":57.14,"FCC Lab":100},"mdm":{"EF":70},"openElective":{},"average":80.85},
-  {"usn":"CS25145","name":"JAY NARENDRA BALPANDE","main":{"CAO":80,"DSA":83.33,"DSA Lab":100,"ED":85.7,"DMGT":84.21,"ES":71.43,"FCC Lab":50},"mdm":{"EF":50},"openElective":{"EST":80},"average":76.07},
-  {"usn":"CS25146","name":"KAJAL KRISHNA DHAKATE","main":{"CAO":90,"DSA":91.67,"DSA Lab":100,"ED":71.4,"DMGT":84.21,"ES":71.43,"FCC Lab":100},"mdm":{"EF":70},"openElective":{"EDP":30},"average":78.75},
-  {"usn":"CS25147","name":"KETAKI DEEPAK BARAPATRE","main":{"CAO":70,"DSA":100,"DSA Lab":75,"ED":85.7,"DMGT":84.21,"ES":85.71,"FCC Lab":100},"mdm":{"WD":100,"WD Lab":66.67},"openElective":{},"average":85.25},
-  {"usn":"CS25148","name":"KHUSHBU MORESHWAR HOOD","main":{"CAO":100,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":100,"ES":71.43,"FCC Lab":100},"mdm":{"WD":90,"WD Lab":100},"openElective":{},"average":94.79},
-  {"usn":"CS25149","name":"KOSTUBHI VILAS SONKUSARE","main":{"CAO":90,"DSA":91.67,"DSA Lab":75,"ED":100,"DMGT":78.95,"ES":57.14,"FCC Lab":100},"mdm":{"EF":70},"openElective":{"EDP":70},"average":81.42},
-  {"usn":"CS25150","name":"KRISH WALMIK BORKAR","main":{"CAO":100,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":100,"ES":71.43,"FCC Lab":100},"mdm":{"WD":90,"WD Lab":100},"openElective":{},"average":94.79},
-  {"usn":"CS25151","name":"KRUTIKA CHANDRAKUMAR WASNIK","main":{"CAO":90,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":84.21,"ES":85.71,"FCC Lab":100},"mdm":{"EF":80},"openElective":{"SPS":40},"average":85.73},
-  {"usn":"CS25152","name":"MAHESHWARI DAYAL MILMILE","main":{"CAO":90,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":71.43,"FCC Lab":100},"mdm":{"BA":90.91},"openElective":{},"average":92.34},
-  {"usn":"CS25153","name":"MAITHALI SITARAM YADAV","main":{"CAO":90,"DSA":100,"DSA Lab":75,"ED":100,"DMGT":78.95,"ES":100,"FCC Lab":100},"mdm":{"EF":100},"openElective":{"EST":70},"average":90.44},
-  {"usn":"CS25154","name":"MANSI MORESHWAR NAGBHIDKAR","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":85.7,"DMGT":89.47,"ES":85.71,"FCC Lab":100},"mdm":{"WD":80,"WD Lab":100},"openElective":{},"average":93.43},
-  {"usn":"CS25155","name":"SNEHSHRI MAJI RATAN","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":85.71,"FCC Lab":75},"mdm":{"BA":100},"openElective":{},"average":94.43},
-  {"usn":"CS25156","name":"MOHD MAAZ MUDASSAR KHAN","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":85.71,"FCC Lab":100},"mdm":{"EF":100},"openElective":{"EST":90},"average":96.72},
-  {"usn":"CS25157","name":"MOLYANI PAWAN PANDE","main":{"CAO":90,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":84.21,"ES":71.43,"FCC Lab":100},"mdm":{"EF":100},"openElective":{},"average":92.16},
-  {"usn":"CS25158","name":"OM SATISH NIPANE","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":100,"FCC Lab":100},"mdm":{"BA":100},"openElective":{"EDP":100,"DCD":100},"average":100},
-  {"usn":"CS25159","name":"PARINITA MILIND WELEKAR","main":{"CAO":90,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":85.71,"FCC Lab":75},"mdm":{"WD":100,"WD Lab":66.67},"openElective":{},"average":90.24},
-  {"usn":"CS25160","name":"POONAM SUDHIR BANDE","main":{"CAO":100,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":89.47,"ES":85.71,"FCC Lab":75},"mdm":{"BA":100},"openElective":{"EST":90},"average":92.43},
-  {"usn":"CS25161","name":"PRACHI RUPESH BAJORIA","main":{"CAO":90,"DSA":83.33,"DSA Lab":100,"ED":100,"DMGT":89.47,"ES":57.14,"FCC Lab":100},"mdm":{"EF":100},"openElective":{},"average":89.99},
-  {"usn":"CS25162","name":"PRAJWAL GAJENDRA SOMKUWAR","main":{"CAO":60,"DSA":83.33,"DSA Lab":75,"ED":71.4,"DMGT":73.68,"ES":71.43,"FCC Lab":100},"mdm":{"EF":80},"openElective":{"DCD":80},"average":77.2},
-  {"usn":"CS25163","name":"PRATHMESH VIJAY LONARKAR","main":{"CAO":70,"DSA":75,"DSA Lab":75,"ED":57.1,"DMGT":84.21,"ES":57.14,"FCC Lab":100},"mdm":{"EF":80},"openElective":{},"average":74.81},
-  {"usn":"CS25164","name":"PRESHITA TIKARAM KOHAD","main":{"CAO":90,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":100,"FCC Lab":100},"mdm":{"BA":100},"openElective":{"EST":90},"average":97.78},
-  {"usn":"CS25165","name":"PRIYASHI PANKAJ SONI","main":{"CAO":60,"DSA":58.33,"DSA Lab":25,"ED":71.4,"DMGT":57.89,"ES":42.86,"FCC Lab":75},"mdm":{"EF":70},"openElective":{},"average":57.56},
-  {"usn":"CS25166","name":"RIYA PRATAPSINGH CHAUHAN","main":{"CAO":70,"DSA":91.67,"DSA Lab":75,"ED":71.4,"DMGT":63.16,"ES":85.71,"FCC Lab":75},"mdm":{"BA":72.73},"openElective":{},"average":75.58},
-  {"usn":"CS25167","name":"RIYA SURESH BIHANI","main":{"CAO":100,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":89.47,"ES":100,"FCC Lab":100},"mdm":{"EF":80},"openElective":{"SPS":70},"average":92.35},
-  {"usn":"CS25168","name":"RUKHSAR ASHIK MALADHARI","main":{"CAO":90,"DSA":100,"DSA Lab":75,"ED":100,"DMGT":89.47,"ES":100,"FCC Lab":100},"mdm":{"IoT":100,"IoT Lab":100},"openElective":{},"average":94.94},
-  {"usn":"CS25169","name":"SAKSHI RAJESH SANDEL","main":{"CAO":70,"DSA":66.67,"DSA Lab":100,"ED":57.1,"DMGT":78.95,"ES":57.14,"FCC Lab":50},"mdm":{"BA":36.36,"IoT Lab":0},"openElective":{},"average":57.36},
-  {"usn":"CS25170","name":"SAMEER SUBHAN MAHAJAN","main":{"CAO":90,"DSA":100,"DSA Lab":100,"ED":85.7,"DMGT":84.21,"ES":85.71,"FCC Lab":75},"mdm":{"BA":90.91},"openElective":{},"average":88.94},
-  {"usn":"CS25171","name":"SANKET SHANKAR BARAI","main":{"CAO":100,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":85.71,"FCC Lab":100},"mdm":{"EF":100,"SPS":100},"openElective":{},"average":96.9},
-  {"usn":"CS25172","name":"SARAKSHI SANJAY MISHRA","main":{"CAO":90,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":84.21,"ES":85.71,"FCC Lab":100},"mdm":{"BA":90.91},"openElective":{},"average":93.85},
-  {"usn":"CS25173","name":"SAURABH SANJAY SATPHALE","main":{"CAO":100,"DSA":75,"DSA Lab":100,"ED":100,"DMGT":84.21,"ES":57.14,"FCC Lab":75},"mdm":{"BA":72.73},"openElective":{"EST":80},"average":82.68},
-  {"usn":"CS25176","name":"SHREYA SACHIN NIMBALKAR","main":{"CAO":100,"DSA":83.33,"DSA Lab":100,"ED":85.7,"DMGT":89.47,"ES":85.71,"FCC Lab":100},"mdm":{"BA":100},"openElective":{},"average":93.03},
-  {"usn":"CS25177","name":"SHRUTIKA DIPAK SAWANKAR","main":{"CAO":20,"DSA":0,"DSA Lab":25,"ED":0,"DMGT":15.79,"ES":0,"FCC Lab":0},"mdm":{"EF":0},"openElective":{"EST":0},"average":6.75},
-  {"usn":"CS25178","name":"SIDDHESH UMESH NERKAR","main":{"CAO":80,"DSA":58.33,"DSA Lab":100,"ED":71.4,"DMGT":78.95,"ES":42.86,"FCC Lab":50},"mdm":{"EF":30},"openElective":{},"average":63.94},
-  {"usn":"CS25179","name":"TANIYA RAJESH SINHA","main":{"CAO":90,"DSA":91.67,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":71.43,"FCC Lab":100},"mdm":{"WD":90,"WD Lab":100},"openElective":{},"average":93.09},
-  {"usn":"CS25180","name":"TANUSHREE RAVINDRA DHOLE","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":100,"FCC Lab":100},"mdm":{"BA":100},"openElective":{},"average":100},
-  {"usn":"CS25181","name":"TUSHAR GAJENDRA SHANWARE","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":100,"FCC Lab":100},"mdm":{"BA":90.91},"openElective":{},"average":98.86},
-  {"usn":"CS25182","name":"TUSHAR KISHOR PAL","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":85.71,"FCC Lab":100},"mdm":{"EF":100},"openElective":{},"average":97.56},
-  {"usn":"CS25183","name":"TWINKLE HEMRAJ PAWAR","main":{"CAO":90,"DSA":83.33,"DSA Lab":100,"ED":85.7,"DMGT":84.21,"ES":42.86,"FCC Lab":100},"mdm":{"EF":70},"openElective":{},"average":82.01},
-  {"usn":"CS25184","name":"UDAY DILIP WANDHARE","main":{"CAO":70,"DSA":58.33,"DSA Lab":50,"ED":57.1,"DMGT":47.37,"ES":28.57,"FCC Lab":25},"mdm":{"EF":60},"openElective":{},"average":49.55},
-  {"usn":"CS25185","name":"UJJWAL CHANDRASHEKHAR HAWARE","main":{"CAO":90,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":85.71,"FCC Lab":100},"mdm":{"EF":100},"openElective":{},"average":96.31},
-  {"usn":"CS25186","name":"VAIDEHI DHANANJAY PADOLE","main":{"CAO":60,"DSA":58.33,"DSA Lab":75,"ED":71.4,"DMGT":68.42,"ES":100,"FCC Lab":75},"mdm":{"BA":72.73},"openElective":{"SPS":60},"average":71.21},
-  {"usn":"CS25187","name":"VEDANT RAJU CHAFALE","main":{"CAO":90,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":94.74,"ES":85.71,"FCC Lab":100},"mdm":{"EF":90},"openElective":{},"average":95.06},
-  {"usn":"CS25188","name":"VEDANTH LAXMAN PASPULWAR","main":{"CAO":90,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":100,"FCC Lab":100},"mdm":{"IoT":100,"IoT Lab":100},"openElective":{},"average":98.89},
-  {"usn":"CS25189","name":"YASHSWEETA LOKCHAND KAWLE","main":{"CAO":90,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":100,"FCC Lab":100},"mdm":{"BA":100},"openElective":{},"average":98.75},
-  {"usn":"CS25190","name":"ZEBA ZAFARULLAH BAIG","main":{"CAO":90,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":100,"FCC Lab":100},"mdm":{"WD":100,"WD Lab":100},"openElective":{},"average":98.89}
+  {"usn":"CS25128","name":"ADITI KARAN","main":{"CAO":92,"DSA":96,"DSA Lab":100,"ED":100,"DMGT":97.3,"ES":87,"FCC Lab":100},"mdm":{"MDM-Theory":95.24},"openElective":{},"average":95.94},
+  {"usn":"CS25129","name":"ADITYA YOGESH BHURSE","main":{"CAO":96,"DSA":91,"DSA Lab":100,"ED":78.55,"DMGT":89.2,"ES":67,"FCC Lab":100},"mdm":{"MDM-Theory":47.62},"openElective":{},"average":83.67},
+  {"usn":"CS25130","name":"AKANSHA PRASHANT SHARMA","main":{"CAO":63,"DSA":52,"DSA Lab":67,"ED":71.45,"DMGT":56.8,"ES":47,"FCC Lab":71},"mdm":{"MDM-Theory":42.86},"openElective":{},"average":58.89},
+  {"usn":"CS25131","name":"ANIKET UMESH SONWANE","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":93,"FCC Lab":100},"mdm":{"MDM-Theory":100,"MDM-Lab":100},"openElective":{},"average":99.22},
+  {"usn":"CS25132","name":"ANKIT ASHWIN ITANKAR","main":{"CAO":96,"DSA":96,"DSA Lab":100,"ED":71.41,"DMGT":86.5,"ES":87,"FCC Lab":86},"mdm":{"MDM-Theory":83.3},"openElective":{},"average":88.28},
+  {"usn":"CS25133","name":"ASAWARI SURESH CHICHMALKAR","main":{"CAO":92,"DSA":74,"DSA Lab":100,"ED":85.7,"DMGT":81.1,"ES":67,"FCC Lab":86},"mdm":{"MDM-Theory":71.43},"openElective":{},"average":82.15},
+  {"usn":"CS25134","name":"ATHARVA BALU JADHAV","main":{"CAO":88,"DSA":83,"DSA Lab":100,"ED":78.56,"DMGT":78.4,"ES":73,"FCC Lab":86},"mdm":{"MDM-Theory":71.43},"openElective":{"Open-Elective":95.24},"average":83.74},
+  {"usn":"CS25135","name":"ATHARVA PRADIP PANNASE","main":{"CAO":63,"DSA":78,"DSA Lab":89,"ED":78.56,"DMGT":70.3,"ES":60,"FCC Lab":71},"mdm":{"MDM-Theory":57.14},"openElective":{"Open-Elective":66.67},"average":70.41},
+  {"usn":"CS25136","name":"AYAN SHOUKT SAYYED SAYYEDAYAN ALI","main":{"CAO":67,"DSA":78,"DSA Lab":100,"ED":64.28,"DMGT":67.6,"ES":67,"FCC Lab":86},"mdm":{"MDM-Theory":57.14},"openElective":{},"average":73.38},
+  {"usn":"CS25137","name":"AYUSHI GADGE","main":{"CAO":92,"DSA":83,"DSA Lab":100,"ED":92.85,"DMGT":75.7,"ES":67,"FCC Lab":86},"mdm":{"MDM-Theory":83.3},"openElective":{},"average":84.98},
+  {"usn":"CS25138","name":"BINA MUKESH TANTI","main":{"CAO":88,"DSA":87,"DSA Lab":89,"ED":92.85,"DMGT":89.2,"ES":87,"FCC Lab":86},"mdm":{"MDM-Theory":90.48},"openElective":{},"average":88.69},
+  {"usn":"CS25139","name":"GANESH VYANKATI LINGALWAR","main":{"CAO":92,"DSA":87,"DSA Lab":100,"ED":78.56,"DMGT":86.5,"ES":73,"FCC Lab":100},"mdm":{"MDM-Theory":57.14},"openElective":{},"average":84.28},
+  {"usn":"CS25140","name":"GAURIKA HEMANT PAWADE","main":{"CAO":92,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":93,"FCC Lab":100},"mdm":{"MDM-Theory":100,"MDM-Lab":100},"openElective":{},"average":98.33},
+  {"usn":"CS25141","name":"HAMROZ QUAMUDDIN ANSARI","main":{"CAO":88,"DSA":91,"DSA Lab":100,"ED":92.85,"DMGT":83.8,"ES":60,"FCC Lab":100},"mdm":{"MDM-Theory":95.24},"openElective":{"Open-Elective":68.18},"average":86.56},
+  {"usn":"CS25142","name":"HARSHAL RAJKUMAR HARINKHEDE","main":{"CAO":96,"DSA":87,"DSA Lab":100,"ED":92.85,"DMGT":83.8,"ES":73,"FCC Lab":100},"mdm":{"MDM-Theory":80.95},"openElective":{},"average":89.2},
+  {"usn":"CS25143","name":"HIMANEE MAHESH DHARMIK","main":{"CAO":96,"DSA":83,"DSA Lab":100,"ED":100,"DMGT":81.1,"ES":67,"FCC Lab":100},"mdm":{"MDM-Theory":90.48},"openElective":{},"average":89.7},
+  {"usn":"CS25144","name":"HIMANSHU ANJANIKUMAR SINGH","main":{"CAO":96,"DSA":70,"DSA Lab":100,"ED":85.7,"DMGT":75.7,"ES":53,"FCC Lab":86},"mdm":{"MDM-Theory":71.43},"openElective":{},"average":79.73},
+  {"usn":"CS25145","name":"JAY NARENDRA BALPANDE","main":{"CAO":83,"DSA":83,"DSA Lab":100,"ED":92.85,"DMGT":86.5,"ES":73,"FCC Lab":71},"mdm":{"MDM-Theory":52.38},"openElective":{"Open-Elective":90.48},"average":81.36},
+  {"usn":"CS25146","name":"KAJAL KRISHNA DHAKATE","main":{"CAO":92,"DSA":96,"DSA Lab":100,"ED":85.7,"DMGT":89.2,"ES":80,"FCC Lab":100},"mdm":{"MDM-Theory":85.71},"openElective":{"Open-Elective":68.18},"average":88.53},
+  {"usn":"CS25147","name":"KETAKI DEEPAK BARAPATRE","main":{"CAO":88,"DSA":100,"DSA Lab":89,"ED":92.85,"DMGT":91.9,"ES":93,"FCC Lab":100},"mdm":{"MDM-Theory":100,"MDM-Lab":83.33},"openElective":{},"average":93.12},
+  {"usn":"CS25148","name":"KHUSHBU MORESHWAR HOOD","main":{"CAO":92,"DSA":87,"DSA Lab":100,"ED":100,"DMGT":89.2,"ES":60,"FCC Lab":100},"mdm":{"MDM-Theory":88.24,"MDM-Lab":100},"openElective":{},"average":90.72},
+  {"usn":"CS25149","name":"KOSTUBHI VILAS SONKUSARE","main":{"CAO":92,"DSA":96,"DSA Lab":89,"ED":85.72,"DMGT":86.5,"ES":67,"FCC Lab":100},"mdm":{"MDM-Theory":85.71},"openElective":{"Open-Elective":86.36},"average":87.59},
+  {"usn":"CS25150","name":"KRISH WALMIK BORKAR","main":{"CAO":96,"DSA":96,"DSA Lab":100,"ED":100,"DMGT":94.6,"ES":73,"FCC Lab":100},"mdm":{"MDM-Theory":94.12,"MDM-Lab":100},"openElective":{},"average":94.86},
+  {"usn":"CS25151","name":"KRUTIKA CHANDRAKUMAR WASNIK","main":{"CAO":92,"DSA":83,"DSA Lab":89,"ED":92.85,"DMGT":78.4,"ES":73,"FCC Lab":71},"mdm":{"MDM-Theory":80.95},"openElective":{"Open-Elective":61.9},"average":80.23},
+  {"usn":"CS25152","name":"MAHESHWARI DAYAL MILMILE","main":{"CAO":96,"DSA":91,"DSA Lab":100,"ED":100,"DMGT":97.3,"ES":87,"FCC Lab":100},"mdm":{"MDM-Theory":95.8},"openElective":{},"average":95.89},
+  {"usn":"CS25153","name":"MAITHALI SITARAM YADAV","main":{"CAO":92,"DSA":91,"DSA Lab":89,"ED":100,"DMGT":83.8,"ES":93,"FCC Lab":100},"mdm":{"MDM-Theory":100},"openElective":{"Open-Elective":66.67},"average":90.61},
+  {"usn":"CS25154","name":"MANSI MORESHWAR NAGBHIDKAR","main":{"CAO":92,"DSA":100,"DSA Lab":89,"ED":85.7,"DMGT":86.5,"ES":80,"FCC Lab":100},"mdm":{"MDM-Theory":100,"MDM-Lab":83.33},"openElective":{},"average":90.73},
+  {"usn":"CS25155","name":"SNEHSHRI MAJI RATAN","main":{"CAO":96,"DSA":100,"DSA Lab":100,"ED":92.85,"DMGT":91.9,"ES":87,"FCC Lab":100},"mdm":{"MDM-Theory":100},"openElective":{},"average":95.97},
+  {"usn":"CS25156","name":"MOHD MAAZ MUDASSAR KHAN","main":{"CAO":100,"DSA":96,"DSA Lab":100,"ED":92.85,"DMGT":86.5,"ES":80,"FCC Lab":100},"mdm":{"MDM-Theory":80.95},"openElective":{"Open-Elective":95.24},"average":92.39},
+  {"usn":"CS25157","name":"MOLYANI PAWAN PANDE","main":{"CAO":83,"DSA":83,"DSA Lab":78,"ED":71.43,"DMGT":70.3,"ES":67,"FCC Lab":100},"mdm":{"MDM-Theory":71.43},"openElective":{},"average":78.02},
+  {"usn":"CS25158","name":"OM SATISH NIPANE","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":100,"FCC Lab":100},"mdm":{"MDM-Theory":100},"openElective":{"Open-Elective":95.24},"average":99.47},
+  {"usn":"CS25159","name":"PARINITA MILIND WELEKAR","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":93,"FCC Lab":100},"mdm":{"MDM-Theory":100,"MDM-Lab":83.33},"openElective":{},"average":97.37},
+  {"usn":"CS25160","name":"POONAM SUDHIR BANDE","main":{"CAO":75,"DSA":74,"DSA Lab":78,"ED":85.72,"DMGT":73,"ES":67,"FCC Lab":86},"mdm":{"MDM-Theory":91.7},"openElective":{"Open-Elective":61.9},"average":76.92},
+  {"usn":"CS25161","name":"PRACHI RUPESH BAJORIA","main":{"CAO":92,"DSA":87,"DSA Lab":100,"ED":92.85,"DMGT":86.5,"ES":60,"FCC Lab":86},"mdm":{"MDM-Theory":90.48},"openElective":{},"average":86.85},
+  {"usn":"CS25162","name":"PRAJWAL GAJENDRA SOMKUWAR","main":{"CAO":67,"DSA":74,"DSA Lab":67,"ED":71.42,"DMGT":67.6,"ES":53,"FCC Lab":100},"mdm":{"MDM-Theory":66.67},"openElective":{"Open-Elective":57.14},"average":69.31},
+  {"usn":"CS25163","name":"PRATHMESH VIJAY LONARKAR","main":{"CAO":75,"DSA":65,"DSA Lab":78,"ED":64.27,"DMGT":75.7,"ES":47,"FCC Lab":100},"mdm":{"MDM-Theory":66.67},"openElective":{},"average":71.45},
+  {"usn":"CS25164","name":"PRESHITA TIKARAM KOHAD","main":{"CAO":83,"DSA":78,"DSA Lab":100,"ED":92.85,"DMGT":89.2,"ES":93,"FCC Lab":100},"mdm":{"MDM-Theory":79.2},"openElective":{"Open-Elective":71.43},"average":87.41},
+  {"usn":"CS25165","name":"PRIYASHI PANKAJ SONI","main":{"CAO":83,"DSA":78,"DSA Lab":67,"ED":92.84,"DMGT":78.4,"ES":73,"FCC Lab":86},"mdm":{"MDM-Theory":85.71},"openElective":{},"average":80.49},
+  {"usn":"CS25166","name":"RIYA PRATAPSINGH CHAUHAN","main":{"CAO":88,"DSA":87,"DSA Lab":89,"ED":85.7,"DMGT":73,"ES":73,"FCC Lab":86},"mdm":{"MDM-Theory":79.2},"openElective":{},"average":82.61},
+  {"usn":"CS25167","name":"RIYA SURESH BIHANI","main":{"CAO":88,"DSA":87,"DSA Lab":89,"ED":64.28,"DMGT":73,"ES":53,"FCC Lab":86},"mdm":{"MDM-Theory":66.67},"openElective":{"Open-Elective":63.64},"average":74.51},
+  {"usn":"CS25168","name":"RUKHSAR ASHIK MALADHARI","main":{"CAO":96,"DSA":100,"DSA Lab":89,"ED":92.85,"DMGT":89.2,"ES":100,"FCC Lab":100},"mdm":{"MDM-Theory":100,"MDM-Lab":85.71428571},"openElective":{},"average":94.75},
+  {"usn":"CS25169","name":"SAKSHI RAJESH SANDEL","main":{"CAO":88,"DSA":78,"DSA Lab":100,"ED":71.41,"DMGT":86.5,"ES":80,"FCC Lab":71},"mdm":{"MDM-Theory":62.5},"openElective":{"Open-Elective":50},"average":76.38},
+  {"usn":"CS25170","name":"SAMEER SUBHAN MAHAJAN","main":{"CAO":92,"DSA":91,"DSA Lab":100,"ED":92.85,"DMGT":83.8,"ES":87,"FCC Lab":86},"mdm":{"MDM-Theory":83.3},"openElective":{},"average":89.49},
+  {"usn":"CS25171","name":"SANKET SHANKAR BARAI","main":{"CAO":92,"DSA":91,"DSA Lab":100,"ED":92.85,"DMGT":91.9,"ES":80,"FCC Lab":100},"mdm":{"MDM-Theory":90.48},"openElective":{"Open-Elective":90.48},"average":92.08},
+  {"usn":"CS25172","name":"SARAKSHI SANJAY MISHRA","main":{"CAO":92,"DSA":91,"DSA Lab":100,"ED":100,"DMGT":86.5,"ES":87,"FCC Lab":100},"mdm":{"MDM-Theory":95.8},"openElective":{},"average":94.04},
+  {"usn":"CS25173","name":"SAURABH SANJAY SATPHALE","main":{"CAO":83,"DSA":70,"DSA Lab":89,"ED":85.72,"DMGT":81.1,"ES":60,"FCC Lab":86},"mdm":{"MDM-Theory":70.8},"openElective":{"Open-Elective":52.38},"average":75.33},
+  {"usn":"CS25176","name":"SHREYA SACHIN NIMBALKAR","main":{"CAO":100,"DSA":91,"DSA Lab":78,"ED":85.7,"DMGT":89.2,"ES":87,"FCC Lab":100},"mdm":{"MDM-Theory":100},"openElective":{},"average":91.36},
+  {"usn":"CS25177","name":"SHRUTIKA DIPAK SAWANKAR","main":{"CAO":92,"DSA":43,"DSA Lab":67,"ED":42.85,"DMGT":100,"ES":40,"FCC Lab":100},"mdm":{"MDM-Theory":42.86},"openElective":{"Open-Elective":0},"average":58.63},
+  {"usn":"CS25178","name":"SIDDHESH UMESH NERKAR","main":{"CAO":83,"DSA":70,"DSA Lab":89,"ED":71.42,"DMGT":81.1,"ES":60,"FCC Lab":71},"mdm":{"MDM-Theory":48},"openElective":{},"average":71.69},
+  {"usn":"CS25179","name":"TANIYA RAJESH SINHA","main":{"CAO":96,"DSA":96,"DSA Lab":100,"ED":92.85,"DMGT":89.2,"ES":87,"FCC Lab":100},"mdm":{"MDM-Theory":82.35,"MDM-Lab":100},"openElective":{},"average":93.71},
+  {"usn":"CS25180","name":"TANUSHREE RAVINDRA DHOLE","main":{"CAO":100,"DSA":100,"DSA Lab":89,"ED":100,"DMGT":100,"ES":100,"FCC Lab":100},"mdm":{"MDM-Theory":91.7},"openElective":{},"average":97.59},
+  {"usn":"CS25181","name":"TUSHAR GAJENDRA SHANWARE","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":100,"FCC Lab":100},"mdm":{"MDM-Theory":87.5},"openElective":{},"average":98.44},
+  {"usn":"CS25182","name":"TUSHAR KISHOR PAL","main":{"CAO":96,"DSA":100,"DSA Lab":100,"ED":92.85,"DMGT":91.9,"ES":73,"FCC Lab":100},"mdm":{"MDM-Theory":100},"openElective":{},"average":94.22},
+  {"usn":"CS25183","name":"TWINKLE HEMRAJ PAWAR","main":{"CAO":96,"DSA":91,"DSA Lab":100,"ED":92.85,"DMGT":86.5,"ES":60,"FCC Lab":86},"mdm":{"MDM-Theory":76.19},"openElective":{},"average":86.07},
+  {"usn":"CS25184","name":"UDAY DILIP WANDHARE","main":{"CAO":83,"DSA":74,"DSA Lab":78,"ED":71.41,"DMGT":64.9,"ES":47,"FCC Lab":57},"mdm":{"MDM-Theory":61.9},"openElective":{},"average":67.15},
+  {"usn":"CS25185","name":"UJJWAL CHANDRASHEKHAR HAWARE","main":{"CAO":96,"DSA":91,"DSA Lab":100,"ED":92.85,"DMGT":94.6,"ES":73,"FCC Lab":100},"mdm":{"MDM-Theory":90.48},"openElective":{},"average":92.24},
+  {"usn":"CS25186","name":"VAIDEHI DHANANJAY PADOLE","main":{"CAO":79,"DSA":74,"DSA Lab":89,"ED":85.7,"DMGT":78.4,"ES":80,"FCC Lab":71},"mdm":{"MDM-Theory":79.2},"openElective":{"Open-Elective":57.14},"average":77.05},
+  {"usn":"CS25187","name":"VEDANT RAJU CHAFALE","main":{"CAO":83,"DSA":87,"DSA Lab":78,"ED":92.85,"DMGT":78.4,"ES":67,"FCC Lab":100},"mdm":{"MDM-Theory":90.48},"openElective":{},"average":84.59},
+  {"usn":"CS25188","name":"VEDANTH LAXMAN PASPULWAR","main":{"CAO":100,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":100,"FCC Lab":100},"mdm":{"MDM-Theory":100,"MDM-Lab":85.71428571},"openElective":{},"average":98.41},
+  {"usn":"CS25189","name":"YASHSWEETA LOKCHAND KAWLE","main":{"CAO":96,"DSA":100,"DSA Lab":100,"ED":100,"DMGT":100,"ES":93,"FCC Lab":86},"mdm":{"MDM-Theory":100},"openElective":{},"average":96.88},
+  {"usn":"CS25190","name":"ZEBA ZAFARULLAH BAIG","main":{"CAO":96,"DSA":100,"DSA Lab":9,"ED":100,"DMGT":97.3,"ES":93,"FCC Lab":100},"mdm":{"MDM-Theory":100,"MDM-Lab":100},"openElective":{},"average":88.37}
 ];
 
 function getStoredAttendance() {

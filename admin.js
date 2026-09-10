@@ -19,8 +19,8 @@ const adminState = {
   pinConfig: {
     "1717": { id: _adminDec(_ADMIN_SEC.r), name: "Academics", defaultSemester: "3" },
     "1919": { id: "ATTENDANCE_VAULT", name: "Student Attendance Vault" },
-    "2334": { id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT", name: "Public Vault", noLoginRequired: true },
     "3333": { id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT", name: "Class Upload Folder", noLoginRequired: false },
+    "2222": { id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT", name: "Class Upload Folder (No Login)", noLoginRequired: true },
     "1111": { id: _adminDec(_ADMIN_SEC.r), name: "Aniket-Notes", noLoginRequired: true }
   }
 };
@@ -67,12 +67,8 @@ function initAdminData() {
       };
       savePinConfig();
     }
-    if (!adminState.pinConfig["2334"] || adminState.pinConfig["2334"].name !== "Public Vault") {
-      adminState.pinConfig["2334"] = {
-        id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
-        name: "Public Vault",
-        noLoginRequired: true
-      };
+    if (adminState.pinConfig["2334"]) {
+      delete adminState.pinConfig["2334"];
       savePinConfig();
     }
     if (!adminState.pinConfig["1111"] || adminState.pinConfig["1111"].name !== "Aniket-Notes") {
@@ -88,6 +84,14 @@ function initAdminData() {
         id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
         name: "Class Upload Folder",
         noLoginRequired: false
+      };
+      savePinConfig();
+    }
+    if (!adminState.pinConfig["2222"] || adminState.pinConfig["2222"].name !== "Class Upload Folder (No Login)") {
+      adminState.pinConfig["2222"] = {
+        id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
+        name: "Class Upload Folder (No Login)",
+        noLoginRequired: true
       };
       savePinConfig();
     }
@@ -435,12 +439,8 @@ function formatVaultDisplayName(vaultRaw) {
     return "Attendance Vault";
   }
 
-  if (str === "3333" || str.toLowerCase().includes("class upload") || str.toLowerCase().includes("upload folder")) {
-    return "Class Upload Folder (3333)";
-  }
-
-  if (str === "2334" || str.toLowerCase().includes("public vault") || str.toLowerCase().includes("public-folder") || str.toLowerCase().includes("folder vault")) {
-    return "Public Vault";
+  if (str === "3333" || str === "2222" || str.toLowerCase().includes("class upload") || str.toLowerCase().includes("upload folder")) {
+    return str === "2222" ? "Class Upload Folder (2222 - No Login)" : "Class Upload Folder (3333)";
   }
 
   if (str === "1111" || str.toLowerCase().includes("aniket-notes") || str.toLowerCase().includes("notes")) {

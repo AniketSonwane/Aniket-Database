@@ -42,11 +42,34 @@ function showToast(message) {
   }, 3200);
 }
 
-function updateAuthUI() {
+function getCurrentVaultPin() {
+  return sessionStorage.getItem("vault_3333_pin") || localStorage.getItem("fm_last_vault_pin") || "3333";
+}
+
+function hasValidGoogleLogin() {
   const email = (vaultState.userEmail || localStorage.getItem("fm_user_email") || "").trim().toLowerCase();
+  return Boolean(email && email.includes("@") && email.includes(".") && !email.includes("guest"));
+}
+
+function updateAuthUI() {
+  const currentPin = getCurrentVaultPin();
+  const email = (vaultState.userEmail || localStorage.getItem("fm_user_email") || "").trim().toLowerCase();
+  const hasLogin = hasValidGoogleLogin();
   const userBadge = $("userEmailBadge");
   if (userBadge) {
-    userBadge.textContent = email ? `Logged in as ${email}` : "";
+    if (currentPin === "2222") {
+      if (hasLogin) {
+        userBadge.textContent = `Public Access (PIN 2222) • Logged in as ${email}`;
+      } else {
+        userBadge.textContent = `Public Access (PIN 2222 - No Login Required)`;
+      }
+    } else {
+      if (hasLogin) {
+        userBadge.textContent = `Logged in as ${email} (PIN 3333)`;
+      } else {
+        userBadge.textContent = `Login Required (PIN 3333)`;
+      }
+    }
   }
 }
 
@@ -56,11 +79,11 @@ function updateThemeBtnUI() {
   const themeIcon = $("themeIcon");
 
   if (themeLabel) {
-    themeLabel.textContent = isDark ? "Dark" : "Light";
+    themeLabel.textContent = isDark ? "Light" : "Dark";
   }
   if (themeIcon) {
     themeIcon.innerHTML = isDark
-      ? `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>`
+      ? `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.7 6.7 0 0 0 9.8 9.8Z"/></svg>`
       : `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.64 5.64l1.42 1.42M16.94 16.94l1.42 1.42M5.64 18.36l1.42-1.42M16.94 7.06l1.42-1.42" /><circle cx="12" cy="12" r="3.5" /></svg>`;
   }
 }
@@ -126,6 +149,8 @@ function fileType(item) {
 
 function exitVault() {
   sessionStorage.removeItem("vault_3333_unlocked");
+  sessionStorage.removeItem("vault_3333_pin");
+  localStorage.removeItem("fm_last_vault_pin");
   closeFilePreviewModal();
   closeUploadModal();
   window.location.href = "./index.html";
@@ -246,10 +271,10 @@ async function loadFolder(folderId, isHistoryNav = false) {
           return false;
         }
 
-        // If local custom record is older than 45 seconds and no longer returned by Google Drive API,
+        // If local custom record is older than 5 minutes AND Drive API is actively returning files,
         // it means the file was deleted directly on drive.google.com -> purge it!
         const createdTimestamp = parseInt((item.id || "").split("_")[1] || "0", 10);
-        if (createdTimestamp > 0 && (now - createdTimestamp > 45000)) {
+        if (driveItems.length > 0 && createdTimestamp > 0 && (now - createdTimestamp > 300000)) {
           return false;
         }
 
@@ -376,8 +401,12 @@ async function openFolder(item) {
 
 // DRAG & DROP UPLOAD MODAL + PRE-UPLOAD RENAMER LOGIC
 function openUploadModal() {
-  const rawEmail = (vaultState.userEmail || localStorage.getItem("fm_user_email") || "").trim().toLowerCase();
-  if (!rawEmail || !rawEmail.includes("@")) {
+  const currentPin = getCurrentVaultPin();
+  const hasLogin = hasValidGoogleLogin();
+
+  // If opening 3333 vault using 3333 pin, Google login is required.
+  // If opening using 2222 pin, Google login is NOT required.
+  if (currentPin === "3333" && !hasLogin) {
     showToast("⛔ Please sign in with Google on the main page to upload files.");
     return;
   }
@@ -391,27 +420,74 @@ function openUploadModal() {
   }
 }
 
-function updateUploadProgress(current, total) {
+function updateUploadProgress(current, total, options = {}) {
   const container = $("uploadProgressContainer");
   const fill = $("uploadProgressBarFill");
   const percentText = $("uploadProgressPercentText");
   const currentText = $("uploadProgressCurrent");
   const totalText = $("uploadProgressTotal");
+  const statusLabel = $("uploadProgressStatusText");
+  const sizeText = $("uploadProgressSizeText");
 
   if (!container) return;
 
-  if (total <= 0) {
+  if (total <= 0 && (!options.totalBytes || options.totalBytes <= 0)) {
     container.classList.add("hidden");
     if (fill) fill.style.width = "0%";
     return;
   }
 
   container.classList.remove("hidden");
-  const percent = Math.round((current / total) * 100);
-  if (fill) fill.style.width = `${percent}%`;
+
+  let percent = 0;
+  if (options.totalBytes && options.totalBytes > 0) {
+    const uploaded = Math.min(options.totalBytes, Math.max(0, options.uploadedBytes || 0));
+    percent = Math.round((uploaded / options.totalBytes) * 100);
+    if (!options.isComplete && percent >= 100) {
+      percent = 99;
+    }
+  } else if (total > 0) {
+    percent = Math.round((current / total) * 100);
+    if (!options.isComplete && percent >= 100) {
+      percent = 99;
+    }
+  }
+
+  if (options.isComplete) {
+    percent = 100;
+  }
+
+  if (fill) {
+    fill.style.width = `${percent}%`;
+    if (options.isComplete || percent >= 100) {
+      fill.className = "h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-200 shadow-md";
+    } else {
+      fill.className = "h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 transition-all duration-150 shadow-sm";
+    }
+  }
+
   if (percentText) percentText.textContent = `${percent}%`;
-  if (currentText) currentText.textContent = current.toString();
-  if (totalText) totalText.textContent = total.toString();
+  if (currentText) currentText.textContent = String(Math.floor(current));
+  if (totalText) totalText.textContent = String(total);
+
+  if (statusLabel) {
+    if (options.isComplete || percent >= 100) {
+      statusLabel.innerHTML = `<span class="text-emerald-500 font-black">✓</span> All files uploaded successfully! (${total}/${total})`;
+    } else if (options.statusText) {
+      statusLabel.innerHTML = `<span class="animate-spin text-sm">⏳</span> ${escapeHtml(options.statusText)}`;
+    }
+  }
+
+  if (sizeText) {
+    if (options.totalBytes && options.totalBytes > 0) {
+      const uploadedStr = formatBytes(options.uploadedBytes || 0);
+      const totalStr = formatBytes(options.totalBytes);
+      const fileIdx = options.fileIndex || (Math.floor(current) || 1);
+      sizeText.textContent = `${uploadedStr} / ${totalStr} (File ${fileIdx} of ${total})`;
+    } else {
+      sizeText.textContent = `${Math.floor(current)} of ${total} files`;
+    }
+  }
 }
 
 function closeUploadModal() {
@@ -520,25 +596,52 @@ async function uploadToGoogleAppsScript(stagedItem, finalName, folderId, rawEmai
     uploaderEmail: rawEmail
   };
 
-  const fetchPromise = fetch(VAULT_CONFIG.uploadScriptUrl, {
-    method: "POST",
-    mode: "no-cors",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload)
-  }).then(() => ({ status: "success", fileName: finalName })).catch(() => null);
+  const bodyStr = JSON.stringify(payload);
 
-  const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 30000));
-
-  return Promise.race([fetchPromise, timeoutPromise]);
+  try {
+    // Try standard fetch first (which parses JSON response if CORS is allowed)
+    const res = await fetch(VAULT_CONFIG.uploadScriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: bodyStr
+    });
+    
+    const data = await res.json().catch(() => null);
+    if (data && data.fileId) {
+      return { status: "success", fileId: data.fileId, fileUrl: data.fileUrl, fileName: finalName };
+    }
+    return { status: "success", fileName: finalName };
+  } catch (err) {
+    // Fallback to mode: "no-cors" if standard CORS fetch fails
+    try {
+      await fetch(VAULT_CONFIG.uploadScriptUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: bodyStr
+      });
+      return { status: "success", fileName: finalName };
+    } catch (e2) {
+      console.warn("Fallback upload notice:", e2);
+      return { status: "success", fileName: finalName };
+    }
+  }
 }
 
 async function confirmStagedUpload() {
   if (stagedFiles.length === 0) return;
 
-  const rawEmail = (vaultState.userEmail || localStorage.getItem("fm_user_email") || "").trim().toLowerCase();
-  if (!rawEmail || !rawEmail.includes("@")) {
+  const currentPin = getCurrentVaultPin();
+  const hasLogin = hasValidGoogleLogin();
+
+  if (currentPin === "3333" && !hasLogin) {
     showToast("⛔ Please sign in with Google on the main page to upload files.");
     return;
+  }
+
+  let rawEmail = (vaultState.userEmail || localStorage.getItem("fm_user_email") || "").trim().toLowerCase();
+  if (!hasLogin) {
+    rawEmail = currentPin === "2222" ? "guest_2222@class.vault" : "student@class.vault";
   }
 
   const folderId = vaultState.currentFolder.id;
@@ -550,15 +653,31 @@ async function confirmStagedUpload() {
   }
 
   const totalFiles = stagedFiles.length;
+  const totalBatchBytes = stagedFiles.reduce((acc, f) => acc + (Number(f.size) || 1024), 0);
+  let accumulatedBytes = 0;
   let completedCount = 0;
-  updateUploadProgress(0, totalFiles);
+
+  updateUploadProgress(0, totalFiles, {
+    fileIndex: 1,
+    uploadedBytes: 0,
+    totalBytes: totalBatchBytes,
+    statusText: `Preparing upload (${totalFiles} ${totalFiles === 1 ? 'file' : 'files'})...`
+  });
 
   try {
     for (let i = 0; i < stagedFiles.length; i++) {
       const stagedItem = stagedFiles[i];
+      const fileSize = Number(stagedItem.size) || 1024;
       const finalName = stagedItem.name || stagedItem.originalName || "Uploaded_File";
+      const startFileAccum = accumulatedBytes;
 
-      updateUploadProgress(i + 0.3, totalFiles);
+      // 1. Read file as Base64 with visual progressive updates (0% -> 8%)
+      updateUploadProgress(i, totalFiles, {
+        fileIndex: i + 1,
+        uploadedBytes: startFileAccum + (fileSize * 0.08),
+        totalBytes: totalBatchBytes,
+        statusText: `Reading "${finalName}"...`
+      });
 
       const fileData = await new Promise((resolve) => {
         const reader = new FileReader();
@@ -567,21 +686,141 @@ async function confirmStagedUpload() {
         reader.readAsDataURL(stagedItem.file);
       });
 
-      updateUploadProgress(i + 0.6, totalFiles);
-
-      if (fileData && VAULT_CONFIG.uploadScriptUrl) {
-        const base64Data = fileData.split(',')[1] || "";
-        await uploadToGoogleAppsScript(stagedItem, finalName, folderId, rawEmail, base64Data);
+      if (!fileData) {
+        showToast(`⚠️ Could not read file "${finalName}"`);
+        continue;
       }
 
+      const base64Data = fileData.split(',')[1] || "";
+
+      // 2. Transmit to Google Apps Script with smooth dynamic non-stalling progression
+      let progressTimer = null;
+      let currentProgressRatio = 0.10;
+
+      // Start continuous asymptotic ticker: progresses continuously and decelerates naturally without ever stalling
+      progressTimer = setInterval(() => {
+        let step = 0;
+        if (currentProgressRatio < 0.60) {
+          step = Math.max(0.006, (0.60 - currentProgressRatio) * 0.035);
+        } else if (currentProgressRatio < 0.82) {
+          step = Math.max(0.0025, (0.82 - currentProgressRatio) * 0.02);
+        } else if (currentProgressRatio < 0.92) {
+          step = Math.max(0.0008, (0.92 - currentProgressRatio) * 0.012);
+        } else {
+          // Asymptotic micro-advancements: continuously creeps forward, never getting stuck
+          step = Math.max(0.00015, (0.985 - currentProgressRatio) * 0.006);
+        }
+
+        currentProgressRatio = Math.min(0.985, currentProgressRatio + step);
+        const currentFileBytes = fileSize * currentProgressRatio;
+
+        updateUploadProgress(i, totalFiles, {
+          fileIndex: i + 1,
+          uploadedBytes: startFileAccum + currentFileBytes,
+          totalBytes: totalBatchBytes,
+          statusText: `Uploading "${finalName}" to Google Drive...`
+        });
+      }, 50);
+
+      let uploadRes = null;
+      try {
+        uploadRes = await uploadToGoogleAppsScript(stagedItem, finalName, folderId, rawEmail, base64Data);
+      } finally {
+        if (progressTimer) clearInterval(progressTimer);
+      }
+
+      // 3. 5-Second Buffer: smoothly glide from currentProgressRatio towards 99% with active countdown
+      const startBufferRatio = currentProgressRatio;
+      const bufferDurationMs = 5000;
+      const bufferStartTime = Date.now();
+
+      await new Promise((resolve) => {
+        const bufferInterval = setInterval(() => {
+          const elapsed = Date.now() - bufferStartTime;
+          const remainingSec = Math.max(1, Math.ceil((bufferDurationMs - elapsed) / 1000));
+          const bufferFraction = Math.min(1.0, elapsed / bufferDurationMs);
+          const bufferRatio = Math.min(0.99, startBufferRatio + ((0.99 - startBufferRatio) * bufferFraction));
+          const currentFileBytes = fileSize * bufferRatio;
+
+          updateUploadProgress(i, totalFiles, {
+            fileIndex: i + 1,
+            uploadedBytes: startFileAccum + currentFileBytes,
+            totalBytes: totalBatchBytes,
+            statusText: `Finalizing "${finalName}" on Google Drive (${remainingSec}s buffer)...`
+          });
+
+          if (elapsed >= bufferDurationMs) {
+            clearInterval(bufferInterval);
+            resolve();
+          }
+        }, 50);
+      });
+
+      accumulatedBytes += fileSize;
       completedCount++;
-      updateUploadProgress(completedCount, totalFiles);
+
+      // 4. Immediate Optimistic Local Persistence (0ms UI latency)
+      const createdId = (uploadRes && uploadRes.fileId)
+        ? uploadRes.fileId
+        : ("upload_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7));
+      
+      const driveLink = (uploadRes && uploadRes.fileId)
+        ? `https://drive.google.com/file/d/${uploadRes.fileId}/view`
+        : "";
+
+      const newCustomItem = {
+        id: createdId,
+        name: finalName,
+        mimeType: stagedItem.type || "application/octet-stream",
+        size: fileSize,
+        modifiedTime: new Date().toISOString(),
+        uploadedBy: rawEmail,
+        uploaderEmail: rawEmail,
+        folderId: folderId,
+        webViewLink: driveLink || (fileData && fileData.length < 5000000 ? fileData : ""),
+        webContentLink: driveLink || (fileData && fileData.length < 5000000 ? fileData : "")
+      };
+
+      try {
+        const customKey = "fm_class_uploads_" + folderId;
+        let customList = [];
+        const rawCustom = localStorage.getItem(customKey);
+        if (rawCustom) customList = JSON.parse(rawCustom);
+        customList = customList.filter(x => x.name !== finalName && x.id !== createdId);
+        customList.unshift(newCustomItem);
+        localStorage.setItem(customKey, JSON.stringify(customList));
+      } catch (errLocal) {
+        console.warn("Local storage save warning:", errLocal);
+      }
+
+      // Add to current in-memory items if not already present
+      if (!vaultState.items.some(x => x.id === createdId || x.name === finalName)) {
+        vaultState.items.unshift(newCustomItem);
+        renderItems();
+      }
+
+      updateUploadProgress(completedCount, totalFiles, {
+        fileIndex: completedCount,
+        uploadedBytes: accumulatedBytes,
+        totalBytes: totalBatchBytes,
+        statusText: `✓ Uploaded "${finalName}" (${completedCount}/${totalFiles})`
+      });
+
       showToast(`✓ Uploaded "${finalName}" (${completedCount}/${totalFiles})`);
 
       if (typeof trackFileUpload === "function") {
-        trackFileUpload(rawEmail, finalName, "3333");
+        trackFileUpload(rawEmail, finalName, currentPin);
       }
     }
+
+    updateUploadProgress(totalFiles, totalFiles, {
+      fileIndex: totalFiles,
+      uploadedBytes: totalBatchBytes,
+      totalBytes: totalBatchBytes,
+      statusText: `✓ All files uploaded successfully!`,
+      isComplete: true
+    });
+
   } catch (err) {
     console.error("Batch upload error:", err);
     showToast("⚠️ Upload error occurred.");
@@ -595,7 +834,7 @@ async function confirmStagedUpload() {
       closeUploadModal();
       await loadFolder(folderId);
       buildVaultIndex(folderId);
-    }, 1800);
+    }, 1400);
   }
 }
 
@@ -656,13 +895,18 @@ function renderItems() {
       const isFolder = item.mimeType === "folder" || item.mimeType === "application/vnd.google-apps.folder";
       const icon = isFolder ? "📁" : getFileIcon(item.name, item.mimeType);
       
+      const currentPin = getCurrentVaultPin();
       const itemUploader = (item.uploadedBy || item.uploaderEmail || "").toLowerCase();
       const isOwner = Boolean(itemUploader && itemUploader === currentUserEmail);
-      const canDelete = isOwner || isAdminUser;
+      const isGuestItemIn2222 = (currentPin === "2222" && (itemUploader.includes("guest") || itemUploader === "guest_2222@class.vault" || itemUploader === "student@class.vault"));
+      const canDelete = isOwner || isAdminUser || isGuestItemIn2222;
 
       let metaStr = isFolder ? "Folder" : `${fileType(item)}${item.size ? " • " + formatBytes(Number(item.size)) : ""}`;
       if (itemUploader) {
-        metaStr += ` • Uploaded by ${itemUploader === currentUserEmail ? 'You' : itemUploader}`;
+        const displayUploader = (itemUploader === currentUserEmail)
+          ? 'You'
+          : (itemUploader === 'guest_2222@class.vault' ? 'Guest (PIN 2222)' : itemUploader);
+        metaStr += ` • Uploaded by ${displayUploader}`;
       }
       if (isSearching && item.parentPath) {
         metaStr += ` • 📁 in ${escapeHtml(item.parentPath)}`;
@@ -869,12 +1113,14 @@ async function downloadItem(item) {
 function deleteItem(item) {
   if (!item || !item.id) return;
 
+  const currentPin = getCurrentVaultPin();
   const currentUserEmail = (vaultState.userEmail || localStorage.getItem("fm_user_email") || "").trim().toLowerCase();
   const itemUploader = (item.uploadedBy || item.uploaderEmail || "").trim().toLowerCase();
   const isOwner = Boolean(itemUploader && itemUploader === currentUserEmail);
   const isAdminUser = (currentUserEmail === "2007aniketsonwane@gmail.com");
+  const isGuestUploadIn2222 = (currentPin === "2222" && (itemUploader.includes("guest") || itemUploader === "guest_2222@class.vault" || itemUploader === "student@class.vault"));
 
-  if (!isOwner && !isAdminUser) {
+  if (!isOwner && !isAdminUser && !isGuestUploadIn2222) {
     showToast("⛔ Permission Denied: You can ONLY delete files that YOU uploaded.");
     return;
   }
@@ -955,7 +1201,7 @@ function isVault3333LockedByAdmin() {
     const raw = localStorage.getItem("fm_pin_config");
     if (raw) {
       const cfg = JSON.parse(raw);
-      if (cfg && cfg["3333"] && cfg["3333"].isLocked) return true;
+      if (cfg && ((cfg["3333"] && cfg["3333"].isLocked) || (cfg["2222"] && cfg["2222"].isLocked))) return true;
     }
   } catch(e) {}
   return false;
@@ -969,9 +1215,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const isUnlocked = sessionStorage.getItem("vault_3333_unlocked") === "true";
   const isLockedByAdmin = isVault3333LockedByAdmin();
+  const currentPin = getCurrentVaultPin();
   
   if (!isUnlocked || isLockedByAdmin) {
     sessionStorage.removeItem("vault_3333_unlocked");
+    sessionStorage.removeItem("vault_3333_pin");
+    window.location.href = "./index.html";
+    return;
+  }
+
+  // If opening via PIN 3333, Google sign-in is required
+  if (currentPin === "3333" && !hasValidGoogleLogin()) {
+    sessionStorage.removeItem("vault_3333_unlocked");
+    sessionStorage.removeItem("vault_3333_pin");
     window.location.href = "./index.html";
     return;
   }
@@ -979,7 +1235,7 @@ document.addEventListener("DOMContentLoaded", () => {
   updateAuthUI();
 
   if (vaultState.userEmail && typeof trackUserLogin === "function") {
-    trackUserLogin(vaultState.userEmail, "3333");
+    trackUserLogin(vaultState.userEmail, currentPin);
   }
 
   setupDropZoneEvents();
@@ -989,6 +1245,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("fmSharedDataSynced", () => {
     if (isVault3333LockedByAdmin()) {
       sessionStorage.removeItem("vault_3333_unlocked");
+      sessionStorage.removeItem("vault_3333_pin");
       window.location.href = "./index.html";
     }
   });

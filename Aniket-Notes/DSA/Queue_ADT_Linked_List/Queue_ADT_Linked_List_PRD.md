@@ -792,6 +792,11 @@ class Queue {
     struct Node {
         int data;
         Node* next;
+
+        Node(int value) {
+            data = value;
+            next = NULL;
+        }
     };
 
     Node* front;
@@ -803,50 +808,62 @@ public:
         rear = NULL;
     }
 
+    // Insert element
     void enqueue(int value) {
-        Node* newNode = new Node;
+        Node* newNode = new Node(value);
 
-        newNode->data = value;
-        newNode->next = NULL;
-
-        if (front == NULL) {
+        if (rear == NULL) {
             front = rear = newNode;
+            return;
         }
-        else {
-            rear->next = newNode;
-            rear = newNode;
-        }
+
+        rear->next = newNode;
+        rear = newNode;
     }
 
+    // Remove element
     void dequeue() {
         if (front == NULL) {
-            cout << "Queue Underflow";
+            cout << "Queue Underflow" << endl;
+            return;
+        }
+
+        Node* temp = front;
+        cout << "Deleted: " << temp->data << endl;
+
+        front = front->next;
+
+        if (front == NULL)
+            rear = NULL;
+
+        delete temp;
+    }
+
+    // Show front element
+    void peek() {
+        if (front == NULL) {
+            cout << "Queue is Empty" << endl;
+            return;
+        }
+
+        cout << "Front: " << front->data << endl;
+    }
+
+    // Display queue
+    void display() {
+        if (front == NULL) {
+            cout << "Queue is Empty" << endl;
             return;
         }
 
         Node* temp = front;
 
-        cout << "Deleted: " << front->data;
-
-        front = front->next;
-
-        delete temp;
-
-        if (front == NULL)
-            rear = NULL;
-    }
-
-    void peek() {
-        if (front == NULL) {
-            cout << "Queue is Empty";
-            return;
+        while (temp != NULL) {
+            cout << temp->data << " ";
+            temp = temp->next;
         }
 
-        cout << "Front Element: " << front->data;
-    }
-
-    bool isEmpty() {
-        return front == NULL;
+        cout << endl;
     }
 };
 
@@ -856,10 +873,18 @@ int main() {
     q.enqueue(10);
     q.enqueue(20);
     q.enqueue(30);
+    q.enqueue(40);
 
-    q.dequeue();
+    cout << "Queue: ";
+    q.display();
 
     q.peek();
+
+    q.dequeue();
+    q.dequeue();
+
+    cout << "Queue after dequeue: ";
+    q.display();
 
     return 0;
 }

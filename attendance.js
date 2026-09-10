@@ -12,6 +12,25 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+function formatMdmSubjectName(name) {
+  if (!name) return "MDM";
+  const n = String(name).trim();
+  if (/^mdm[- ]?theory$/i.test(n) || /^theory$/i.test(n)) return "MDM-Theory";
+  if (/^mdm[- ]?lab$/i.test(n) || /^lab$/i.test(n)) return "MDM-Lab";
+  if (/^wd\s*lab$/i.test(n) || /^mwd\s*lab$/i.test(n) || /^iot\s*lab$/i.test(n)) return `${n} (MDM)`;
+  if (/mdm/i.test(n)) return n;
+  return `${n} (MDM)`;
+}
+
+function formatOeSubjectName(name) {
+  if (!name) return "Open-Elective";
+  const n = String(name).trim();
+  if (/^open[- ]?elective(\s*theory)?$/i.test(n) || /^theory$/i.test(n) || /^oe(\s*theory)?$/i.test(n)) return "Open-Elective";
+  if (/open[- ]?elective/i.test(n) || /oe/i.test(n)) return n;
+  return `${n} (OE)`;
+}
+
+
 let searchDebounceTimer = null;
 function initAttendanceEvents() {
   const searchInp = $("searchInput");
@@ -31,21 +50,37 @@ function initAttendanceEvents() {
     filterSel.onchange = e => renderAttendanceView(currentSearchQuery, e.target.value);
   }
 
+  function updateAttendanceThemeUI(isDark) {
+    const themeLabel = $("themeLabel");
+    const themeIcon = $("themeIcon");
+    if (themeLabel) {
+      themeLabel.textContent = isDark ? "Light" : "Dark";
+    }
+    if (themeIcon) {
+      themeIcon.innerHTML = isDark
+        ? `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.7 6.7 0 0 0 9.8 9.8Z"/></svg>`
+        : `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.64 5.64l1.42 1.42M16.94 16.94l1.42 1.42M5.64 18.36l1.42-1.42M16.94 7.06l1.42-1.42"/><circle cx="12" cy="12" r="3.5"/></svg>`;
+    }
+  }
+
+  const initialTheme = localStorage.getItem("fm_theme") || localStorage.getItem("theme") || localStorage.getItem("aniket_theme") || "dark";
+  const initialIsDark = initialTheme === "dark";
+  document.documentElement.classList.toggle("dark", initialIsDark);
+  document.documentElement.classList.toggle("light", !initialIsDark);
+  updateAttendanceThemeUI(initialIsDark);
+
   const themeBtn = $("themeToggleBtn");
   if (themeBtn) {
     themeBtn.onclick = () => {
       const isDark = document.documentElement.classList.contains("dark");
-      const moonIcon = `<div class="theme-icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg></div>`;
-      const sunIcon = `<div class="theme-icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg></div>`;
-      if (isDark) {
-        document.documentElement.classList.remove("dark");
-        document.documentElement.classList.add("light");
-        themeBtn.innerHTML = sunIcon;
-      } else {
-        document.documentElement.classList.remove("light");
-        document.documentElement.classList.add("dark");
-        themeBtn.innerHTML = moonIcon;
-      }
+      const nextIsDark = !isDark;
+      const nextTheme = nextIsDark ? "dark" : "light";
+      document.documentElement.classList.toggle("dark", nextIsDark);
+      document.documentElement.classList.toggle("light", !nextIsDark);
+      localStorage.setItem("fm_theme", nextTheme);
+      localStorage.setItem("theme", nextTheme);
+      localStorage.setItem("aniket_theme", nextTheme);
+      updateAttendanceThemeUI(nextIsDark);
     };
   }
 }
@@ -188,14 +223,14 @@ function renderAttendanceView(searchQuery = currentSearchQuery, statusFilter = c
 
             ${mdmEntries.map(([sub, val]) => `
               <div class="px-2.5 py-1 rounded-xl glass border border-amber-300/60 dark:border-amber-800/60 bg-amber-50/40 dark:bg-amber-950/20 text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
-                <span class="text-amber-700 dark:text-amber-400 font-bold">${escapeHtml(sub)} (MDM):</span>
+                <span class="text-amber-700 dark:text-amber-400 font-bold">${escapeHtml(formatMdmSubjectName(sub))}:</span>
                 <span class="${Number(val) < 75 ? 'text-rose-600 dark:text-rose-400 font-black' : 'text-amber-900 dark:text-amber-200'}">${val}%</span>
               </div>
             `).join("")}
 
             ${openEntries.map(([sub, val]) => `
               <div class="px-2.5 py-1 rounded-xl glass border border-purple-300/60 dark:border-purple-800/60 bg-purple-50/40 dark:bg-purple-950/20 text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
-                <span class="text-purple-700 dark:text-purple-400 font-bold">${escapeHtml(sub)} (OE):</span>
+                <span class="text-purple-700 dark:text-purple-400 font-bold">${escapeHtml(formatOeSubjectName(sub))}:</span>
                 <span class="${Number(val) < 75 ? 'text-rose-600 dark:text-rose-400 font-black' : 'text-purple-900 dark:text-purple-200'}">${val}%</span>
               </div>
             `).join("")}
@@ -345,12 +380,12 @@ function showStudentModal(usn) {
 
       ${mdmEntries.length > 0 ? `
         <div class="space-y-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
-          <h5 class="text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">MDM Elective Subjects</h5>
+          <h5 class="text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">MDM Elective (Theory / Lab)</h5>
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
             ${mdmEntries.map(([sub, val]) => `
               <div class="p-2.5 rounded-xl glass border border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-950/20 space-y-1">
                 <div class="flex items-center justify-between text-xs font-extrabold">
-                  <span class="text-amber-900 dark:text-amber-200 truncate pr-1">${escapeHtml(sub)}</span>
+                  <span class="text-amber-900 dark:text-amber-200 truncate pr-1">${escapeHtml(formatMdmSubjectName(sub))}</span>
                   <span class="${Number(val) < 75 ? 'text-rose-600 font-black' : 'text-amber-900 dark:text-amber-100'}">${val}%</span>
                 </div>
                 <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
@@ -364,12 +399,12 @@ function showStudentModal(usn) {
 
       ${openEntries.length > 0 ? `
         <div class="space-y-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
-          <h5 class="text-[11px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">Open Elective Subjects</h5>
+          <h5 class="text-[11px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">Open Elective (Theory)</h5>
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
             ${openEntries.map(([sub, val]) => `
               <div class="p-2.5 rounded-xl glass border border-purple-200 dark:border-purple-900/60 bg-purple-50/30 dark:bg-purple-950/20 space-y-1">
                 <div class="flex items-center justify-between text-xs font-extrabold">
-                  <span class="text-purple-900 dark:text-purple-200 truncate pr-1">${escapeHtml(sub)}</span>
+                  <span class="text-purple-900 dark:text-purple-200 truncate pr-1">${escapeHtml(formatOeSubjectName(sub))}</span>
                   <span class="${Number(val) < 75 ? 'text-rose-600 font-black' : 'text-purple-900 dark:text-purple-100'}">${val}%</span>
                 </div>
                 <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">

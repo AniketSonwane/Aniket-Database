@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Queue ADT Visualizer - Interactive Array Implementation</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class"
+    };
+  </script>
   <link rel="stylesheet" href="queue-styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,12 +23,15 @@
     <nav class="top-bar">
       <div class="brand-badge">Aniket's • DSA Visualizer</div>
       <div style="display: flex; align-items: center; gap: 12px;">
-        <button id="themeToggleBtn" class="theme-toggle-icon-btn" title="Toggle Light / Dark Theme">
-          <div class="theme-icon-circle">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+        <button id="themeToggleBtn" type="button" aria-label="Toggle dark and light mode" title="Toggle Light / Dark Theme"
+          class="flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-white">
+          <span id="themeIcon"
+            class="flex h-6 w-6 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.7 6.7 0 0 0 9.8 9.8Z"/>
             </svg>
-          </div>
+          </span>
+          <span id="themeLabel" class="hidden sm:block">Light</span>
         </button>
         <a href="../../../aniket-notes.html" class="back-link">
           ← Back to Aniket-Notes
@@ -349,8 +357,7 @@
 using namespace std;
 
 class Queue {
-private:
-    int a[5];
+    int arr[100];
     int front;
     int rear;
 
@@ -360,57 +367,77 @@ public:
         rear = -1;
     }
 
+    // Insert element
     void enqueue(int value) {
-        if (rear == 4) {
-            cout &lt;&lt; "Queue Overflow! Queue is Full." &lt;&lt; endl;
+        if (rear == 99) {
+            cout &lt;&lt; "Queue Overflow" &lt;&lt; endl;
             return;
         }
+
         if (front == -1)
             front = 0;
-        rear++;
-        a[rear] = value;
-        cout &lt;&lt; "Enqueued: " &lt;&lt; value &lt;&lt; endl;
+
+        arr[++rear] = value;
     }
 
+    // Remove element
     void dequeue() {
         if (front == -1 || front &gt; rear) {
-            cout &lt;&lt; "Queue Underflow! Queue is Empty." &lt;&lt; endl;
+            cout &lt;&lt; "Queue Underflow" &lt;&lt; endl;
             return;
         }
-        cout &lt;&lt; "Dequeued: " &lt;&lt; a[front] &lt;&lt; endl;
+
+        cout &lt;&lt; "Deleted: " &lt;&lt; arr[front] &lt;&lt; endl;
         front++;
+
         if (front &gt; rear) {
             front = -1;
             rear = -1;
         }
     }
 
+    // Show front element
     void peek() {
-        if (front == -1 || front &gt; rear) {
-            cout &lt;&lt; "Queue is Empty!" &lt;&lt; endl;
+        if (front == -1) {
+            cout &lt;&lt; "Queue is Empty" &lt;&lt; endl;
             return;
         }
-        cout &lt;&lt; "Front Element: " &lt;&lt; a[front] &lt;&lt; endl;
+
+        cout &lt;&lt; "Front: " &lt;&lt; arr[front] &lt;&lt; endl;
     }
 
-    bool isEmpty() {
-        return front == -1 || front &gt; rear;
-    }
+    // Display queue
+    void display() {
+        if (front == -1) {
+            cout &lt;&lt; "Queue is Empty" &lt;&lt; endl;
+            return;
+        }
 
-    bool isFull() {
-        return rear == 4;
+        for (int i = front; i &lt;= rear; i++)
+            cout &lt;&lt; arr[i] &lt;&lt; " ";
+
+        cout &lt;&lt; endl;
     }
 };
 
 int main() {
     Queue q;
+
     q.enqueue(10);
     q.enqueue(20);
     q.enqueue(30);
+    q.enqueue(40);
+
+    cout &lt;&lt; "Queue: ";
+    q.display();
 
     q.peek();
+
     q.dequeue();
-    q.peek();
+    q.dequeue();
+
+    cout &lt;&lt; "Queue after dequeue: ";
+    q.display();
 
     return 0;
 }</code></pre>

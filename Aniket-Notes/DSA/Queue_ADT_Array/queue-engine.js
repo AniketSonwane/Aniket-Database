@@ -21,15 +21,15 @@ class QueueEngine {
       ENQUEUE_CHECK_FULL: 2,   // if (rear == 4) return;
       ENQUEUE_INIT_FRONT: 3,   // if (front == -1) front = 0;
       ENQUEUE_MOVE_REAR: 4,    // rear++;
-      ENQUEUE_INSERT: 5,       // a[rear] = value;
+      ENQUEUE_INSERT: 5,       // arr[rear] = value;
 
       DEQUEUE_CHECK_EMPTY: 8,  // if (front == -1 || front > rear) return;
-      DEQUEUE_READ: 9,         // int val = a[front];
+      DEQUEUE_READ: 9,         // int val = arr[front];
       DEQUEUE_MOVE_FRONT: 10,  // front++;
       DEQUEUE_RESET_CHECK: 11, // if (front > rear) { front = -1; rear = -1; }
 
       PEEK_CHECK: 14,          // if (front == -1) return;
-      PEEK_RETURN: 15,         // return a[front];
+      PEEK_RETURN: 15,         // return arr[front];
 
       ISEMPTY_CHECK: 18,       // return front == -1;
 

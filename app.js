@@ -30,15 +30,15 @@ const DEFAULT_CONFIG = {
       id: "ATTENDANCE_VAULT",
       name: "Student Attendance Vault"
     },
-    "2334": {
-      id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
-      name: "Public Vault",
-      noLoginRequired: true
-    },
     "3333": {
       id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
       name: "Class Upload Folder",
       noLoginRequired: false
+    },
+    "2222": {
+      id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
+      name: "Class Upload Folder",
+      noLoginRequired: true
     },
     "1111": {
       id: _secDec(_SEC_STORE.r),
@@ -285,7 +285,7 @@ function submitPin() {
     return;
   }
 
-  const isNoLoginRequired = Boolean(targetFolder.noLoginRequired || entry === "2334" || entry === "1111");
+  const isNoLoginRequired = Boolean(targetFolder.noLoginRequired || entry === "1111" || entry === "2222");
 
   if (!isNoLoginRequired && (!rawEmail || !rawEmail.includes("@") || !rawEmail.includes("."))) {
     $("pinMessage").textContent = "⛔ Please sign in with your Google Account first.";
@@ -346,19 +346,15 @@ async function openManager(pin, targetFolder) {
     return;
   }
 
-  if (pin === "3333" || (state.root && (state.root.name === "Class Upload Folder" || state.root.id === "3333"))) {
+  if (pin === "3333" || pin === "2222" || (state.root && (state.root.name.includes("Class Upload Folder") || state.root.id === "3333" || state.root.id === "2222" || state.root.id === "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT"))) {
     sessionStorage.setItem("vault_3333_unlocked", "true");
-    const userEmail = (state.userEmail || localStorage.getItem("fm_user_email") || "").trim();
+    sessionStorage.setItem("vault_3333_pin", pin);
+    localStorage.setItem("fm_last_vault_pin", pin);
+    const userEmail = (state.userEmail || localStorage.getItem("fm_user_email") || (pin === "2222" ? "Guest User" : "")).trim();
     if (userEmail && typeof trackUserLogin === "function") {
-      trackUserLogin(userEmail, "3333");
+      trackUserLogin(userEmail, pin === "2222" ? "2222 (Public Access)" : "3333");
     }
     window.location.href = "./vault3333.html";
-    return;
-  }
-
-  if (pin === "2334" || (state.root && (state.root.name === "Public Vault" || state.root.id === "2334" || state.root.id === "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT"))) {
-    sessionStorage.setItem("vault_2334_unlocked", "true");
-    window.location.href = "./vault2334.html?autounlock=true";
     return;
   }
 
@@ -397,7 +393,7 @@ async function openManager(pin, targetFolder) {
   $("adminScreen").classList.add("hidden");
   $("managerScreen").classList.remove("hidden");
 
-  if (pin === "2334" || (state.root && state.root.noLoginRequired)) {
+  if (state.root && state.root.noLoginRequired) {
     if ($("topNavCards")) $("topNavCards").classList.add("hidden");
   } else {
     if ($("topNavCards")) $("topNavCards").classList.remove("hidden");
@@ -422,8 +418,9 @@ function exitVault() {
   state.items = [];
   state.breadcrumb = [];
   sessionStorage.removeItem("vault_1111_unlocked");
-  sessionStorage.removeItem("vault_2334_unlocked");
   sessionStorage.removeItem("vault_3333_unlocked");
+  sessionStorage.removeItem("vault_3333_pin");
+  localStorage.removeItem("fm_last_vault_pin");
   if ($("searchInput")) $("searchInput").value = "";
   $("managerScreen").classList.add("hidden");
   $("adminScreen").classList.add("hidden");
@@ -447,8 +444,9 @@ function logout() {
   state.items = [];
   state.breadcrumb = [];
   sessionStorage.removeItem("vault_1111_unlocked");
-  sessionStorage.removeItem("vault_2334_unlocked");
   sessionStorage.removeItem("vault_3333_unlocked");
+  sessionStorage.removeItem("vault_3333_pin");
+  localStorage.removeItem("fm_last_vault_pin");
   if ($("searchInput")) $("searchInput").value = "";
   $("managerScreen").classList.add("hidden");
   $("pinScreen").classList.remove("hidden");
@@ -467,7 +465,7 @@ function renderHeader() {
   if ($("userEmailBadge")) {
     $("userEmailBadge").textContent = state.userEmail ? `Logged in as ${state.userEmail}` : "";
   }
-  if (state.pin === "2334" || (state.root && state.root.noLoginRequired)) {
+  if (state.root && state.root.noLoginRequired) {
     if ($("topNavCards")) $("topNavCards").classList.add("hidden");
   }
   renderBreadcrumb();
@@ -1042,7 +1040,7 @@ function escapeAttr(value) {
 function setActiveNavCard(navName) {
   state.activeNav = navName;
   if ($("topNavCards")) {
-    if (state.pin === "2334" || (state.root && state.root.noLoginRequired)) {
+    if (state.root && state.root.noLoginRequired) {
       $("topNavCards").classList.add("hidden");
     } else {
       $("topNavCards").classList.remove("hidden");
@@ -1955,7 +1953,7 @@ document.querySelectorAll("[data-nav]").forEach(btn => {
   btn.onclick = async () => {
     const action = btn.dataset.nav;
 
-    if (state.pin === "2334" || (state.root && state.root.noLoginRequired)) {
+    if (state.root && state.root.noLoginRequired) {
       if ($("topNavCards")) $("topNavCards").classList.add("hidden");
       if (action !== "all" && action !== "settings") {
         return;
@@ -2361,6 +2359,24 @@ window.addEventListener("pageshow", () => {
   updateGoogleLoginUI();
 });
 
+function formatMdmSubjectName(name) {
+  if (!name) return "MDM";
+  const n = String(name).trim();
+  if (/^mdm[- ]?theory$/i.test(n) || /^theory$/i.test(n)) return "MDM-Theory";
+  if (/^mdm[- ]?lab$/i.test(n) || /^lab$/i.test(n)) return "MDM-Lab";
+  if (/^wd\s*lab$/i.test(n) || /^mwd\s*lab$/i.test(n) || /^iot\s*lab$/i.test(n)) return `${n} (MDM)`;
+  if (/mdm/i.test(n)) return n;
+  return `${n} (MDM)`;
+}
+
+function formatOeSubjectName(name) {
+  if (!name) return "Open-Elective";
+  const n = String(name).trim();
+  if (/^open[- ]?elective(\s*theory)?$/i.test(n) || /^theory$/i.test(n) || /^oe(\s*theory)?$/i.test(n)) return "Open-Elective";
+  if (/open[- ]?elective/i.test(n) || /oe/i.test(n)) return n;
+  return `${n} (OE)`;
+}
+
 let activeAttendanceSearch = "";
 let activeAttendanceFilter = "all";
 
@@ -2574,14 +2590,14 @@ function renderAttendanceVaultView(searchQuery = activeAttendanceSearch, statusF
 
             ${mdmEntries.map(([sub, val]) => `
               <div class="px-2.5 py-1 rounded-xl glass border border-amber-300/60 dark:border-amber-800/60 bg-amber-50/40 dark:bg-amber-950/20 text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
-                <span class="text-amber-700 dark:text-amber-400 font-bold">${escapeHtml(sub)} (MDM):</span>
+                <span class="text-amber-700 dark:text-amber-400 font-bold">${escapeHtml(formatMdmSubjectName(sub))}:</span>
                 <span class="${Number(val) < 75 ? 'text-rose-600 dark:text-rose-400 font-black' : 'text-amber-900 dark:text-amber-200'}">${val}%</span>
               </div>
             `).join("")}
 
             ${openEntries.map(([sub, val]) => `
               <div class="px-2.5 py-1 rounded-xl glass border border-purple-300/60 dark:border-purple-800/60 bg-purple-50/40 dark:bg-purple-950/20 text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
-                <span class="text-purple-700 dark:text-purple-400 font-bold">${escapeHtml(sub)} (OE):</span>
+                <span class="text-purple-700 dark:text-purple-400 font-bold">${escapeHtml(formatOeSubjectName(sub))}:</span>
                 <span class="${Number(val) < 75 ? 'text-rose-600 dark:text-rose-400 font-black' : 'text-purple-900 dark:text-purple-200'}">${val}%</span>
               </div>
             `).join("")}
@@ -2736,12 +2752,12 @@ function showStudentAttendanceDetail(usn) {
 
       ${mdmEntries.length > 0 ? `
         <div class="space-y-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
-          <h5 class="text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">MDM Elective Subjects</h5>
+          <h5 class="text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">MDM Elective (Theory / Lab)</h5>
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
             ${mdmEntries.map(([sub, val]) => `
               <div class="p-2.5 rounded-xl glass border border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-950/20 space-y-1">
                 <div class="flex items-center justify-between text-xs font-extrabold">
-                  <span class="text-amber-900 dark:text-amber-200 truncate pr-1">${escapeHtml(sub)}</span>
+                  <span class="text-amber-900 dark:text-amber-200 truncate pr-1">${escapeHtml(formatMdmSubjectName(sub))}</span>
                   <span class="${Number(val) < 75 ? 'text-rose-600 font-black' : 'text-amber-900 dark:text-amber-100'}">${val}%</span>
                 </div>
                 <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
@@ -2755,12 +2771,12 @@ function showStudentAttendanceDetail(usn) {
 
       ${openEntries.length > 0 ? `
         <div class="space-y-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
-          <h5 class="text-[11px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">Open Elective Subjects</h5>
+          <h5 class="text-[11px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">Open Elective (Theory)</h5>
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
             ${openEntries.map(([sub, val]) => `
               <div class="p-2.5 rounded-xl glass border border-purple-200 dark:border-purple-900/60 bg-purple-50/30 dark:bg-purple-950/20 space-y-1">
                 <div class="flex items-center justify-between text-xs font-extrabold">
-                  <span class="text-purple-900 dark:text-purple-200 truncate pr-1">${escapeHtml(sub)}</span>
+                  <span class="text-purple-900 dark:text-purple-200 truncate pr-1">${escapeHtml(formatOeSubjectName(sub))}</span>
                   <span class="${Number(val) < 75 ? 'text-rose-600 font-black' : 'text-purple-900 dark:text-purple-100'}">${val}%</span>
                 </div>
                 <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">

@@ -74,8 +74,6 @@ class BubbleSortVisualizer {
 
   initTheme() {
     const savedTheme = localStorage.getItem('fm_theme') || localStorage.getItem('theme') || localStorage.getItem('aniket_theme') || localStorage.getItem('bubblesort_theme') || 'dark';
-    const moonIcon = `<div class="theme-icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg></div>`;
-    const sunIcon = `<div class="theme-icon-circle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg></div>`;
     const isLight = savedTheme === 'light';
     
     document.documentElement.classList.toggle('light', isLight);
@@ -88,7 +86,19 @@ class BubbleSortVisualizer {
       document.body.classList.toggle('dark-mode', !isLight);
       document.body.classList.toggle('dark', !isLight);
     }
-    if (this.themeToggleBtn) this.themeToggleBtn.innerHTML = isLight ? sunIcon : moonIcon;
+    const themeLabel = document.getElementById('themeLabel');
+    const themeIcon = document.getElementById('themeIcon');
+    if (themeLabel) themeLabel.textContent = isLight ? "Dark" : "Light";
+    if (themeIcon) {
+      themeIcon.innerHTML = isLight
+        ? `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+             <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.64 5.64l1.42 1.42M16.94 16.94l1.42 1.42M5.64 18.36l1.42-1.42M16.94 7.06l1.42-1.42"/>
+             <circle cx="12" cy="12" r="3.5"/>
+           </svg>`
+        : `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+             <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.7 6.7 0 0 0 9.8 9.8Z"/>
+           </svg>`;
+    }
   }
 
   toggleTheme() {

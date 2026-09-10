@@ -15,23 +15,23 @@ class QueueEngine {
 
     // C++ Code Line Mappings
     this.cppLines = {
-      ENQUEUE_ALLOC: 2,       // Node* newNode = new Node(); newNode->data = val; newNode->next = nullptr;
-      ENQUEUE_FIRST_CHECK: 3, // if (front == nullptr) front = rear = newNode;
+      ENQUEUE_ALLOC: 2,       // Node* newNode = new Node(val);
+      ENQUEUE_FIRST_CHECK: 3, // if (rear == NULL) front = rear = newNode;
       ENQUEUE_CONNECT: 4,     // rear->next = newNode;
       ENQUEUE_UPDATE_REAR: 5, // rear = newNode;
 
-      DEQUEUE_CHECK_EMPTY: 8, // if (front == nullptr) return;
+      DEQUEUE_CHECK_EMPTY: 8, // if (front == NULL) return;
       DEQUEUE_TEMP: 9,        // Node* temp = front;
       DEQUEUE_MOVE_FRONT: 10, // front = front->next;
-      DEQUEUE_DELETE: 11,     // delete temp;
-      DEQUEUE_RESET_REAR: 12, // if (front == nullptr) rear = nullptr;
+      DEQUEUE_RESET_REAR: 11, // if (front == NULL) rear = NULL;
+      DEQUEUE_DELETE: 12,     // delete temp;
 
-      PEEK_CHECK: 15,         // if (front == nullptr) return -1;
+      PEEK_CHECK: 15,         // if (front == NULL) return;
       PEEK_RETURN: 16,        // return front->data;
 
-      ISEMPTY_CHECK: 19,      // return front == nullptr;
+      ISEMPTY_CHECK: 19,      // return front == NULL;
 
-      CLEAR_LOOP: 22          // while (front != nullptr) dequeue();
+      CLEAR_LOOP: 22          // while (front != NULL) dequeue();
     };
   }
 

@@ -252,6 +252,19 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.classList.toggle('dark-mode', !isLight);
       document.body.classList.toggle('dark', !isLight);
     }
+    const themeLabel = document.getElementById('themeLabel');
+    const themeIcon = document.getElementById('themeIcon');
+    if (themeLabel) themeLabel.textContent = isLight ? "Dark" : "Light";
+    if (themeIcon) {
+      themeIcon.innerHTML = isLight
+        ? `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+             <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.64 5.64l1.42 1.42M16.94 16.94l1.42 1.42M5.64 18.36l1.42-1.42M16.94 7.06l1.42-1.42"/>
+             <circle cx="12" cy="12" r="3.5"/>
+           </svg>`
+        : `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+             <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.7 6.7 0 0 0 9.8 9.8Z"/>
+           </svg>`;
+    }
   }
   syncTheme();
 
@@ -277,32 +290,39 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
 
-    const comments = [];
-    escaped = escaped.replace(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/)/g, (match) => {
-      comments.push(match);
-      return `___COMMENT_${comments.length - 1}___`;
+    const tokenRegex = new RegExp([
+      '(\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)', // 1: comments
+      '(".*?")',                                // 2: strings
+      '(#(?:include|define|ifndef|endif|ifdef)\\s*(&lt;[a-zA-Z0-9_.]+&gt;)?)', // 3: preprocessor
+      '\\b(return|if|else|while|for|break|continue|switch|case|default)\\b', // 4: control keywords
+      '\\b(class|struct|public|private|protected|using|namespace|typedef|template|typename|delete|new)\\b', // 5: keywords
+      '\\b(void|int|float|double|char|bool|long|short|nullptr|NULL|true|false)\\b', // 6: types
+      '\\b(cout|cin|endl)\\b',                  // 7: io
+      '\\b([A-Z][a-zA-Z0-9_]*)\\b',             // 8: types/classes
+      '\\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*\\()', // 9: functions
+      '\\b(\\d+)\\b'                            // 10: numbers
+    ].join('|'), 'g');
+
+    el.innerHTML = escaped.replace(tokenRegex, (match, comment, str, pp, header, ctrl, kw, type, io, cls, fn, num) => {
+      if (comment) return `<span class="syn-cm">${comment}</span>`;
+      if (str) return `<span class="syn-str">${str}</span>`;
+      if (pp) {
+        if (header) {
+          const dir = pp.slice(0, pp.indexOf(header)).trim();
+          return `<span class="syn-pp">${dir}</span> <span class="syn-str">${header}</span>`;
+        }
+        return `<span class="syn-pp">${pp}</span>`;
+      }
+      if (ctrl) return `<span class="syn-ctrl">${ctrl}</span>`;
+      if (kw) return `<span class="syn-kw">${kw}</span>`;
+      if (type) return `<span class="syn-type">${type}</span>`;
+      if (io) return `<span class="syn-fn">${io}</span>`;
+      if (cls) return `<span class="syn-type">${cls}</span>`;
+      if (fn) return `<span class="syn-fn">${fn}</span>`;
+      if (num) return `<span class="syn-num">${num}</span>`;
+      return match;
     });
 
-    const strings = [];
-    escaped = escaped.replace(/(".*?"|&lt;[a-zA-Z0-9_.]*?&gt;)/g, (match) => {
-      strings.push(match);
-      return `___STRING_${strings.length - 1}___`;
-    });
-
-    escaped = escaped.replace(/\b(return|if|else|while|for|break|continue)\b/g, '<span class="syn-ctrl">$1</span>');
-    escaped = escaped.replace(/\b(class|struct|public|private|protected|using|namespace|typedef|template|typename|delete|new)\b/g, '<span class="syn-kw">$1</span>');
-    escaped = escaped.replace(/\b(void|int|float|double|char|bool|long|short)\b/g, '<span class="syn-type">$1</span>');
-    escaped = escaped.replace(/\b(nullptr|NULL|true|false)\b/g, '<span class="syn-type">$1</span>');
-    escaped = escaped.replace(/(#include|#define|#ifndef|#endif|#ifdef)/g, '<span class="syn-pp">$1</span>');
-    escaped = escaped.replace(/\b(cout|cin|endl)\b/g, '<span class="syn-fn">$1</span>');
-    escaped = escaped.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\s*\()/g, '<span class="syn-fn">$1</span>');
-    escaped = escaped.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g, '<span class="syn-type">$1</span>');
-    escaped = escaped.replace(/\b(\d+)\b/g, '<span class="syn-num">$1</span>');
-
-    escaped = escaped.replace(/___STRING_(\d+)___/g, (_, idx) => `<span class="syn-str">${strings[idx]}</span>`);
-    escaped = escaped.replace(/___COMMENT_(\d+)___/g, (_, idx) => `<span class="syn-cm">${comments[idx]}</span>`);
-
-    el.innerHTML = escaped;
     el.dataset.highlighted = "true";
   }
 

@@ -31,27 +31,27 @@ class QueueVisualizer {
     // C++ Source Code Snippet Definition
     this.cppSnippet = [
       { line: 1, text: '// Enqueue Operation' },
-      { line: 2, text: 'Node* newNode = new Node(); newNode->data = val; newNode->next = nullptr;' },
-      { line: 3, text: 'if (front == nullptr) front = rear = newNode;' },
+      { line: 2, text: 'Node* newNode = new Node(val);' },
+      { line: 3, text: 'if (rear == NULL) front = rear = newNode;' },
       { line: 4, text: 'else rear->next = newNode;' },
       { line: 5, text: 'rear = newNode;' },
       { line: 6, text: '' },
       { line: 7, text: '// Dequeue Operation' },
-      { line: 8, text: 'if (front == nullptr) return; // Queue Underflow' },
+      { line: 8, text: 'if (front == NULL) return; // Queue Underflow' },
       { line: 9, text: 'Node* temp = front;' },
       { line: 10, text: 'front = front->next;' },
-      { line: 11, text: 'delete temp;' },
-      { line: 12, text: 'if (front == nullptr) rear = nullptr;' },
+      { line: 11, text: 'if (front == NULL) rear = NULL;' },
+      { line: 12, text: 'delete temp;' },
       { line: 13, text: '' },
       { line: 14, text: '// Peek Operation' },
-      { line: 15, text: 'if (front == nullptr) return -1;' },
+      { line: 15, text: 'if (front == NULL) return; // Empty' },
       { line: 16, text: 'return front->data;' },
       { line: 17, text: '' },
       { line: 18, text: '// IsEmpty Check' },
-      { line: 19, text: 'return front == nullptr;' },
+      { line: 19, text: 'return front == NULL;' },
       { line: 20, text: '' },
       { line: 21, text: '// Clear Operation' },
-      { line: 22, text: 'while (front != nullptr) dequeue();' }
+      { line: 22, text: 'while (front != NULL) dequeue();' }
     ];
 
     this.renderCppCode();

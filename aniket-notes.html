@@ -167,13 +167,17 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <button id="exitVaultBtn" onclick="lockVault()" type="button" class="px-3.5 py-2 rounded-xl font-black text-xs bg-amber-500/10 text-amber-600 dark:text-amber-300 hover:bg-amber-500/20 border border-amber-400/30 transition">
-          Exit Vault 🚪
+        <button id="themeToggle" type="button" onclick="toggleTheme()" aria-label="Toggle dark and light mode"
+          class="flex h-10 sm:h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-white">
+          <span id="themeIcon"
+            class="flex h-6 w-6 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.7 6.7 0 0 0 9.8 9.8Z"/>
+            </svg>
+          </span>
+          <span id="themeLabel" class="hidden sm:block">Light</span>
         </button>
-        <button type="button" onclick="toggleTheme()" class="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-          🌙
-        </button>
-        <a href="./index.html" class="px-3.5 py-2 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+        <a href="./index.html" class="flex h-10 sm:h-11 items-center px-3.5 text-xs font-bold rounded-2xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
           ← Back to Main App
         </a>
       </div>
@@ -349,7 +353,7 @@
             <p class="text-[10px] text-slate-500 dark:text-slate-400">Toggle between Light and Dark mode</p>
           </div>
           <button onclick="toggleTheme()" class="px-3 py-1.5 text-xs font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 transition">
-            Toggle Theme 🌙
+            Toggle Theme 🌓
           </button>
         </div>
 
