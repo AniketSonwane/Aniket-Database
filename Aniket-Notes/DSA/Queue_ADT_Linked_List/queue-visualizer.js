@@ -72,23 +72,12 @@ class QueueVisualizer {
 
       const lineCodeSpan = document.createElement('span');
       lineCodeSpan.className = 'line-code';
-      lineCodeSpan.innerHTML = this.formatSyntax(item.text);
+      lineCodeSpan.textContent = item.text;
 
       lineDiv.appendChild(lineNumSpan);
       lineDiv.appendChild(lineCodeSpan);
       this.codeLinesContainer.appendChild(lineDiv);
     });
-  }
-
-  formatSyntax(codeStr) {
-    if (codeStr.startsWith('//')) {
-      return `<span class="syn-cm">${codeStr}</span>`;
-    }
-    return codeStr
-      .replace(/\b(Node|int|bool|void)\b/g, '<span class="syn-type">$1</span>')
-      .replace(/\b(new|return|while|if|else|delete)\b/g, '<span class="syn-kw">$1</span>')
-      .replace(/\b(front|rear|newNode|temp|nullptr|NULL|data|next|val)\b/g, '<span class="syn-fn">$1</span>')
-      .replace(/\b(\d+)\b/g, '<span class="syn-num">$1</span>');
   }
 
   highlightCodeLine(lineNum) {

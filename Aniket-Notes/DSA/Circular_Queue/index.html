@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circular Queue ADT Visualizer - Interactive Array Implementation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class"
+    };
+  </script>
+  <link rel="stylesheet" href="circularqueue-styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Navigation Bar -->
+    <nav class="top-bar">
+      <div class="brand-badge">Aniket's • DSA Visualizer</div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button id="themeToggleBtn" type="button" aria-label="Toggle dark and light mode" title="Toggle Light / Dark Theme"
+          class="flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-white">
+          <span id="themeIcon"
+            class="flex h-6 w-6 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.7 6.7 0 0 0 9.8 9.8Z"/>
+            </svg>
+          </span>
+          <span id="themeLabel" class="hidden sm:block">Light</span>
+        </button>
+        <a href="../../../aniket-notes.html" class="back-link">
+          ← Back to Aniket-Notes
+        </a>
+      </div>
+    </nav>
+
+    <!-- Hero Header -->
+    <header class="header-hero">
+      <h1 class="hero-title">Circular Queue ADT Visualizer</h1>
+      <h2 class="hero-subtitle">Interactive Array Implementation with Modulo Arithmetic (% 5)</h2>
+      <p class="hero-tagline">Developed by Aniket Sonwane • Dynamic Step-by-Step C++ Execution</p>
+    </header>
+
+    <!-- 1. Input & Controls Section Card -->
+    <section class="glass-card">
+      <div class="input-header">
+        <h3 class="section-title">
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Circular Queue Operations
+        </h3>
+      </div>
+
+      <div class="input-group-row">
+        <input type="number" id="valInput" class="val-input" placeholder="e.g. 60" value="60">
+        <button id="enqueueBtn" class="btn btn-primary">📥 Enqueue</button>
+        <button id="dequeueBtn" class="btn btn-danger">📤 Dequeue</button>
+        <button id="displayBtn" class="btn btn-purple">📋 Display</button>
+        <button id="isFullBtn" class="btn btn-secondary">🧱 Is Full</button>
+        <button id="isEmptyBtn" class="btn btn-accent">❓ Is Empty</button>
+        <button id="resetBtn" class="btn btn-secondary">🗑 Reset</button>
+        <button id="randomEnqueueBtn" class="btn btn-secondary">🎲 Random</button>
+        <button id="presetDemoBtn" class="btn btn-amber">▶ Run C++ Demo</button>
+      </div>
+      <div id="inputError" class="error-msg">Please enter a valid integer between -9999 and 9999.</div>
+    </section>
+
+    <!-- 2. Controls Bar (Playback & Timeline Slider) -->
+    <section class="glass-card controls-card">
+      <div class="controls-row">
+        <div class="nav-controls-group">
+          <button id="prevBtn" class="btn btn-secondary" title="Previous Step">⏮ Previous</button>
+          <button id="playBtn" class="btn btn-primary" title="Play / Pause">▶ Play</button>
+          <button id="nextBtn" class="btn btn-secondary" title="Next Step">Next ⏭</button>
+          <button id="restartBtn" class="btn btn-secondary" title="Restart Step">↻ Restart</button>
+        </div>
+
+        <div class="step-info">
+          <span id="stepCounterText">Step: 1 / 1</span>
+        </div>
+
+        <div class="speed-control-group">
+          <span>Speed:</span>
+          <input type="range" id="speedSlider" class="speed-slider" min="100" max="1500" value="700" step="50" style="direction: rtl;">
+        </div>
+      </div>
+
+      <div class="w-full">
+        <input type="range" id="timelineSlider" class="timeline-slider" min="1" max="1" value="1">
+      </div>
+    </section>
+
+    <!-- 3. View Mode Switcher -->
+    <div class="view-mode-tabs">
+      <button id="viewBothBtn" class="view-tab-btn active">
+        <span>🔄 Dual View (Ribbon + Ring)</span>
+      </button>
+      <button id="viewRibbonBtn" class="view-tab-btn">
+        <span>📊 Array Ribbon & Wrap Arc</span>
+      </button>
+      <button id="viewRingBtn" class="view-tab-btn">
+        <span>⭕ 360° Circular Ring Dial</span>
+      </button>
+    </div>
+
+    <!-- 4. Main Two-Column Visualizer Layout -->
+    <main class="grid-main-visualizer">
+
+      <!-- LEFT COLUMN: Array Queue Stage -->
+      <section class="glass-card left-stage">
+        
+        <!-- Live Statistics Panel -->
+        <div class="stats-bar">
+          <div class="stat-item">
+            <span class="stat-label">Size / Cap</span>
+            <span id="statSize" class="stat-val">3 / 5</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">FRONT Idx</span>
+            <span id="statFrontIdx" class="stat-val">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">REAR Idx</span>
+            <span id="statRearIdx" class="stat-val">2</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">FRONT Val</span>
+            <span id="statFrontVal" class="stat-val">10</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Occupied</span>
+            <span id="statOccupied" class="stat-val" style="color: #6366f1;">3</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Empty</span>
+            <span id="statEmpty" class="stat-val" style="color: #94a3b8;">2</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Status</span>
+            <span id="statStatus" class="stat-val" style="color: #10b981;">Normal</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Enqueues</span>
+            <span id="statEnqueues" class="stat-val">3</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Dequeues</span>
+            <span id="statDequeues" class="stat-val">0</span>
+          </div>
+        </div>
+
+        <!-- Condition Banners -->
+        <div id="fullBanner" class="condition-banner full">
+          <!-- Populated by JS -->
+        </div>
+        <div id="emptyBanner" class="condition-banner empty">
+          <!-- Populated by JS -->
+        </div>
+        <div id="wrapBanner" class="condition-banner wrap">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Main Visualizer Stage Canvas -->
+        <div class="circular-stage-container">
+          
+          <!-- Section 1: Array Ribbon View with SVG Wrap Arc -->
+          <div id="ribbonSection" style="width: 100%;">
+            <div id="arrayRibbonStage" style="width: 100%;">
+              <!-- Injected by JS: Pointers row & 5 cells -->
+            </div>
+
+            <!-- Curved SVG Wrap-Around Arc from index 4 to 0 -->
+            <div class="wrap-connector-container">
+              <svg class="wrap-svg" viewBox="0 0 680 90" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="wrapGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#38bdf8" />
+                    <stop offset="50%" stop-color="#a855f7" />
+                    <stop offset="100%" stop-color="#c084fc" />
+                  </linearGradient>
+                  <marker id="wrapArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 10 2 L 0 5 L 10 8 z" fill="#38bdf8" />
+                  </marker>
+                </defs>
+                <!-- Background dashed loop -->
+                <path class="wrap-path-bg" d="M 610 5 C 610 80, 70 80, 70 5" />
+                <!-- Active flowing wrap path (Arrowhead points to Index 0 on left) -->
+                <path id="wrapPathActive" class="wrap-path-active" d="M 610 5 C 610 80, 70 80, 70 5" marker-end="url(#wrapArrow)" />
+              </svg>
+              <div id="wrapLabel" class="wrap-label">
+                <span>Index 4</span>
+                <span style="color: #38bdf8;">➔ (4 + 1) % 5 = 0 ➔</span>
+                <span>Index 0 (Modulo Wrap-Around)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: 360° Circular Ring Dial -->
+          <div id="ringSection" style="width: 100%; margin-top: 10px;">
+            <div id="circularRingStage">
+              <!-- Injected by JS: 5 circular nodes in a ring -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- FIFO Tracking Visualizer Bar -->
+        <div class="fifo-bar-container">
+          <div class="fifo-title">
+            <span>FIFO Order Tracking (First In, First Out)</span>
+            <span class="text-xs text-sky-400 font-mono">FRONT ➔ REAR</span>
+          </div>
+          <div id="fifoContainer" class="fifo-elements-row">
+            <!-- Dynamic FIFO pills -->
+          </div>
+        </div>
+
+        <!-- Current Operation Summary Panel -->
+        <div class="current-op-card">
+          <div class="op-card-title">Current Operation State</div>
+          
+          <div class="op-metrics-grid">
+            <div class="op-metric-box">
+              <span class="op-lbl">Action</span>
+              <span id="opAction" class="op-val">Enqueue</span>
+            </div>
+            <div class="op-metric-box">
+              <span class="op-lbl">Target Value</span>
+              <span id="opValue" class="op-val">30</span>
+            </div>
+            <div class="op-metric-box">
+              <span class="op-lbl">Result State</span>
+              <span id="opResult" class="op-val success">Enqueued 30</span>
+            </div>
+          </div>
+
+          <div class="op-info-box">
+            <span id="opInfoText">Inserted value 30 at index 2. Circular Queue updated.</span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- RIGHT COLUMN: C++ Execution & Step Explanation -->
+      <section class="right-code-panel">
+        
+        <!-- C++ Code Block -->
+        <div class="glass-card code-card">
+          <div class="code-card-header">
+            <h3 class="section-title" style="margin-bottom: 0;">
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              C++ Execution Track
+            </h3>
+            <span id="variableDeltaBadge" class="code-title-badge" style="display: none;">
+              rear: 4 → 0
+            </span>
+          </div>
+
+          <!-- C++ Code Highlighter Container -->
+          <div id="cppCodeLines" class="code-container">
+            <!-- Code lines injected dynamically -->
+          </div>
+        </div>
+
+        <!-- Step Explanation Card -->
+        <div class="glass-card step-exp-card" style="padding: 22px 26px;">
+          <div class="exp-title">Step Explanation</div>
+          <p id="stepDescText" class="exp-desc">
+            Initializing Circular Queue. FRONT = -1, REAR = -1.
+          </p>
+          <div id="microStepsList" class="micro-steps-list">
+            <!-- Dynamic Micro-steps -->
+          </div>
+        </div>
+
+        <!-- History Log List Card -->
+        <div class="glass-card step-exp-card" style="padding: 22px 26px;">
+          <div class="exp-title">Operation History Log</div>
+          <div id="historyLogList" class="history-log-card">
+            <!-- Dynamic Log Items -->
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- 5. Theory & Educational Sections -->
+    <section class="theory-grid">
+      
+      <!-- What is Circular Queue? -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          📚 What is Circular Queue?
+        </h3>
+        <p class="text-sm text-slate-300 leading-relaxed mb-3">
+          A <strong>Circular Queue</strong> is an advanced linear data structure that adheres to the <strong>FIFO (First In, First Out)</strong> principle.
+        </p>
+        <p class="text-sm text-slate-300 leading-relaxed">
+          The last position of the array connects directly back to the first position using <strong>modulo arithmetic (% 5)</strong>, forming a continuous ring.
+        </p>
+        <ul class="text-xs text-slate-400 mt-3 space-y-1.5 pl-4 list-disc font-mono">
+          <li><strong class="text-sky-400">FRONT</strong>: Points to the first element to be deleted (initially -1).</li>
+          <li><strong class="text-purple-400">REAR</strong>: Points to the last element inserted (initially -1).</li>
+          <li><strong class="text-emerald-400">WRAP</strong>: When rear reaches index 4, next is <code class="text-indigo-400">(4 + 1) % 5 = 0</code>.</li>
+        </ul>
+      </div>
+
+      <!-- Why Circular Queue? -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          💡 Why Circular Queue?
+        </h3>
+        <p class="text-sm text-slate-300 leading-relaxed mb-3">
+          In a simple <strong>Linear Queue</strong>, dequeuing elements creates empty spaces at the beginning of the array that <em>can never be reused</em> once <code class="text-amber-400 font-mono">rear == 4</code>!
+        </p>
+        <div class="bg-slate-900/70 p-3 rounded-lg border border-slate-700/50 font-mono text-xs text-slate-300 mb-3">
+          Linear: &nbsp;[ Empty ][ Empty ][ 30 ][ 40 ][ 50 ] ➔ <strong>OVERFLOW!</strong><br>
+          Circular: [ <strong>60</strong> ][ <strong>70</strong> ][ 30 ][ 40 ][ 50 ] ➔ <strong>REUSED!</strong>
+        </div>
+        <p class="text-xs text-slate-400">
+          ✨ <strong>Benefit:</strong> Zero wasted memory slots. New elements wrap around into previously freed positions without costly array shifting.
+        </p>
+      </div>
+
+      <!-- Modulo Arithmetic Formula Card -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          🔄 Modulo Arithmetic (% 5) Formula
+        </h3>
+        <p class="text-sm text-slate-300 leading-relaxed mb-2">
+          Circular movement is governed by constant-time modulo division:
+        </p>
+        <div class="bg-indigo-950/40 p-3 rounded-lg border border-indigo-500/30 font-mono text-xs text-indigo-300 space-y-1 mb-3">
+          <div>Next Rear:&nbsp; <code class="text-sky-300 font-bold">rear = (rear + 1) % 5;</code></div>
+          <div>Next Front: <code class="text-purple-300 font-bold">front = (front + 1) % 5;</code></div>
+          <div>Full Test:&nbsp; <code class="text-rose-300 font-bold">(rear + 1) % 5 == front</code></div>
+          <div>Empty Test: <code class="text-amber-300 font-bold">front == -1</code></div>
+        </div>
+        <p class="text-xs text-slate-400">
+          When index is 4: <code class="text-emerald-400">(4 + 1) % 5 = 0</code> (Wraps seamlessly to start).
+        </p>
+      </div>
+
+      <!-- Complexity Table Card -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          ⚡ Time & Space Complexity
+        </h3>
+        <div class="table-custom-wrapper">
+          <table class="table-custom">
+            <thead>
+              <tr>
+                <th>Operation</th>
+                <th>Time Complexity</th>
+                <th>Space</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Enqueue</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+                <td>O(1)</td>
+              </tr>
+              <tr>
+                <td>Dequeue</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+                <td>O(1)</td>
+              </tr>
+              <tr>
+                <td>Display / Traversal</td>
+                <td><span class="font-mono text-indigo-400 font-bold">O(k)</span> (k elements)</td>
+                <td>O(1)</td>
+              </tr>
+              <tr>
+                <td>IsFull / IsEmpty</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span></td>
+                <td>O(1)</td>
+              </tr>
+              <tr>
+                <td>Total Memory</td>
+                <td><span class="font-mono text-sky-400 font-bold">O(5)</span> Fixed Array</td>
+                <td>O(N)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Comparison Card -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          📊 Linear Queue vs Circular Queue
+        </h3>
+        <div class="table-custom-wrapper">
+          <table class="table-custom">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Linear Array</th>
+                <th>Circular Queue</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Memory Reuse</td>
+                <td><span class="text-rose-400 font-semibold">No (Wasted)</span></td>
+                <td><span class="text-emerald-400 font-semibold">Yes (100% Reused)</span></td>
+              </tr>
+              <tr>
+                <td>False Overflow</td>
+                <td><span class="text-rose-400 font-semibold">High Risk</span></td>
+                <td><span class="text-emerald-400 font-semibold">Eliminated</span></td>
+              </tr>
+              <tr>
+                <td>Enqueue Time</td>
+                <td>O(1)</td>
+                <td>O(1)</td>
+              </tr>
+              <tr>
+                <td>Dequeue Time</td>
+                <td>O(1)</td>
+                <td>O(1)</td>
+              </tr>
+              <tr>
+                <td>Complexity</td>
+                <td>Simpler pointers</td>
+                <td>Modulo arithmetic</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 6. C++ Code Block Implementation Card -->
+    <section class="glass-card">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="section-title" style="margin-bottom: 0;">
+          💻 Complete C++ Implementation
+        </h3>
+      </div>
+      <div class="code-block-full">
+        <button id="copyCodeBtn" class="copy-btn">Copy Code</button>
+        <pre><code id="fullCppCodeBlock">#include &lt;iostream&gt;
+using namespace std;
+
+class CircularQueue {
+    int arr[5];
+    int front, rear;
+
+public:
+    CircularQueue() {
+        front = -1;
+        rear = -1;
+    }
+
+    void enqueue(int value) {
+        if ((rear + 1) % 5 == front) {
+            cout &lt;&lt; "Queue is Full\n";
+            return;
+        }
+
+        if (front == -1)
+            front = 0;
+
+        rear = (rear + 1) % 5;
+        arr[rear] = value;
+    }
+
+    void dequeue() {
+        if (front == -1) {
+            cout &lt;&lt; "Queue is Empty\n";
+            return;
+        }
+
+        cout &lt;&lt; "Deleted: " &lt;&lt; arr[front] &lt;&lt; endl;
+
+        if (front == rear) {
+            front = rear = -1;
+        } else {
+            front = (front + 1) % 5;
+        }
+    }
+
+    void display() {
+        if (front == -1) {
+            cout &lt;&lt; "Queue is Empty\n";
+            return;
+        }
+
+        int i = front;
+
+        while (true) {
+            cout &lt;&lt; arr[i] &lt;&lt; " ";
+
+            if (i == rear)
+                break;
+
+            i = (i + 1) % 5;
+        }
+
+        cout &lt;&lt; endl;
+    }
+};
+
+int main() {
+    CircularQueue q;
+
+    q.enqueue(10);
+    q.enqueue(20);
+    q.enqueue(30);
+    q.enqueue(40);
+    q.enqueue(50);
+
+    q.display();
+
+    q.dequeue();
+    q.dequeue();
+
+    q.enqueue(60);
+    q.enqueue(70);
+
+    q.display();
+
+    return 0;
+}</code></pre>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <p>© 2026 Circular Queue ADT Visualizer • Developed by Aniket Sonwane • Data Structures & Algorithms</p>
+    </footer>
+
+  </div>
+
+  <!-- JavaScript Application Files -->
+  <script src="circularqueue-engine.js"></script>
+  <script src="circularqueue-visualizer.js"></script>
+  <script src="circularqueue-app.js"></script>
+</body>
+</html>

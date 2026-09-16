@@ -64,6 +64,7 @@ const state = {
   vaultIndex: [],
   activeNav: "all"
 };
+window.state = state;
 
 const $ = (id) => document.getElementById(id);
 
@@ -212,7 +213,7 @@ function isUserBlocked(emailStr) {
   return blocked.map(e => String(e).trim().toLowerCase()).includes(clean);
 }
 
-function submitPin() {
+async function submitPin() {
   CONFIG = getActiveConfig();
 
   updateGoogleLoginUI();
@@ -230,15 +231,28 @@ function submitPin() {
   }
 
   const entry = state.pin;
-  let savedPinConfig = null;
-  try {
-    const rawSaved = localStorage.getItem("fm_pin_config");
-    if (rawSaved) savedPinConfig = JSON.parse(rawSaved);
-  } catch (err) {}
-  const pinConfig = (typeof adminState !== "undefined" && adminState.pinConfig) ? adminState.pinConfig : (savedPinConfig || CONFIG.pinFolders);
+
+  // Ensure latest universal pin config from Google Sheets is available
+  if (typeof getUniversalPinConfig === "function" && !getUniversalPinConfig() && typeof loadSharedData === "function") {
+    try {
+      await loadSharedData(false);
+    } catch (e) {}
+  }
+
+  const universalCfg = (typeof getUniversalPinConfig === "function") ? getUniversalPinConfig() : null;
+  const pinConfig = (typeof adminState !== "undefined" && adminState.pinConfig) 
+    ? adminState.pinConfig 
+    : (universalCfg || CONFIG.pinFolders);
   let targetFolder = pinConfig[entry] || CONFIG.pinFolders[entry];
   if (entry === "1919" || entry === "2024") {
-    targetFolder = { id: "ATTENDANCE_VAULT", name: "Student Attendance Vault" };
+    const isAttendanceLocked = (typeof isPinUniversallyLocked === "function") 
+      ? isPinUniversallyLocked(entry) 
+      : Boolean(targetFolder?.isLocked);
+    targetFolder = { 
+      id: "ATTENDANCE_VAULT", 
+      name: "Student Attendance Vault", 
+      isLocked: isAttendanceLocked 
+    };
   }
 
   const adminEmail = _secDec(_SEC_STORE.e).toLowerCase();
@@ -299,7 +313,7 @@ function submitPin() {
 
   if ((entry === "1717" || entry === "1919" || entry === "2024") && !isAdminUser) {
     if (!rawEmail.endsWith("@sbjit.edu.in")) {
-      $("pinMessage").textContent = `⛔ Access Denied: Vault ${entry} is restricted to @sbjit.edu.in Google accounts only.`;
+      $("pinMessage").textContent = "⛔ Access Denied: This vault is restricted to @sbjit.edu.in Google accounts only.";
       const card = document.querySelector(".pin-card");
       if (card) {
         card.classList.add("shake");
@@ -310,8 +324,13 @@ function submitPin() {
     }
   }
 
-  if (targetFolder.isLocked && !isAdminUser) {
-    $("pinMessage").textContent = `🔒 Vault (${entry}) is currently locked by Admin.`;
+  const isVaultLocked = Boolean(
+    (typeof isPinUniversallyLocked === "function" && isPinUniversallyLocked(entry)) ||
+    targetFolder.isLocked
+  );
+
+  if (isVaultLocked && !isAdminUser) {
+    $("pinMessage").textContent = "🔒 This vault is currently locked by Admin.";
     const card = document.querySelector(".pin-card");
     if (card) {
       card.classList.add("shake");
@@ -329,6 +348,7 @@ function submitPin() {
   $("pinMessage").textContent = "";
   openManager(entry, targetFolder);
 }
+window.submitPin = submitPin;
 
 async function openManager(pin, targetFolder) {
   CONFIG = getActiveConfig();
@@ -338,6 +358,16 @@ async function openManager(pin, targetFolder) {
   if (!state.root) {
     showToast("Folder mapping not found for this PIN.");
     return;
+  }
+
+  const rawEmail = (state.userEmail || localStorage.getItem("fm_user_email") || "").trim().toLowerCase();
+  const adminEmail = (typeof _SEC_STORE !== "undefined" && _SEC_STORE.e) ? _secDec(_SEC_STORE.e).toLowerCase() : "2007aniketsonwane@gmail.com";
+  const isAdminUser = (rawEmail === adminEmail || rawEmail === "2007aniketsonwane@gmail.com" || (typeof adminState !== "undefined" && adminState.isAdminLoggedIn));
+
+  if (isAdminUser) {
+    sessionStorage.setItem("vault_admin_override", "true");
+  } else {
+    sessionStorage.removeItem("vault_admin_override");
   }
 
   if (pin === "1111" || (state.root && (state.root.name === "Aniket-Notes" || state.root.id === "1111"))) {
@@ -420,6 +450,7 @@ function exitVault() {
   sessionStorage.removeItem("vault_1111_unlocked");
   sessionStorage.removeItem("vault_3333_unlocked");
   sessionStorage.removeItem("vault_3333_pin");
+  sessionStorage.removeItem("vault_admin_override");
   localStorage.removeItem("fm_last_vault_pin");
   if ($("searchInput")) $("searchInput").value = "";
   $("managerScreen").classList.add("hidden");
@@ -446,6 +477,7 @@ function logout() {
   sessionStorage.removeItem("vault_1111_unlocked");
   sessionStorage.removeItem("vault_3333_unlocked");
   sessionStorage.removeItem("vault_3333_pin");
+  sessionStorage.removeItem("vault_admin_override");
   localStorage.removeItem("fm_last_vault_pin");
   if ($("searchInput")) $("searchInput").value = "";
   $("managerScreen").classList.add("hidden");
@@ -779,7 +811,7 @@ https://*.github.io/*</code>
           ${isFolder
             ? `<button class="action-btn open-btn" data-open="${escapeAttr(item.id)}">Open →</button>`
             : `
-              <button class="action-btn preview-btn" data-preview="${escapeAttr(item.id)}">Preview 👁️</button>
+              <button class="action-btn preview-btn" data-preview="${escapeAttr(item.id)}" onclick="window.previewItemById('${escapeAttr(item.id)}', event)">Preview 👁️</button>
               <button class="action-btn" data-download="${escapeAttr(item.id)}">Download ↓</button>
             `}
         </div>
@@ -794,6 +826,14 @@ https://*.github.io/*</code>
     };
   });
 
+  $("fileList").querySelectorAll(".file-row:not(.is-folder)").forEach(row => {
+    row.onclick = (e) => {
+      if (e.target.closest(".row-actions") || e.target.closest("button") || e.target.closest("a")) return;
+      const itemId = row.dataset.id;
+      window.previewItemById(itemId, e);
+    };
+  });
+
   $("fileList").querySelectorAll("[data-open]").forEach(btn => {
     btn.onclick = async (e) => {
       e.stopPropagation();
@@ -805,8 +845,7 @@ https://*.github.io/*</code>
   $("fileList").querySelectorAll("[data-preview]").forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
-      const item = pool.find(x => x.id === btn.dataset.preview);
-      if (item) previewItem(item);
+      window.previewItemById(btn.dataset.preview, e);
     };
   });
 
@@ -821,10 +860,31 @@ https://*.github.io/*</code>
 
 let currentPreviewItem = null;
 
+function previewItemById(id, event) {
+  if (event && typeof event.stopPropagation === "function") event.stopPropagation();
+  const pool = [...(state.items || []), ...(state.vaultIndex || [])];
+  const item = pool.find(x => x.id === id);
+  if (item) {
+    previewItem(item);
+    return;
+  }
+  if (window.FilePreviewer && typeof window.FilePreviewer.openById === "function") {
+    window.FilePreviewer.openById(id, event);
+  }
+}
+window.previewItemById = previewItemById;
+
 function previewItem(item) {
   if (!item) return;
   currentPreviewItem = item;
 
+  // Delegate to unified FilePreviewer engine if available
+  if (window.FilePreviewer && typeof window.FilePreviewer.open === "function") {
+    window.FilePreviewer.open(item);
+    return;
+  }
+
+  // Fallback for minimal preview
   const modal = $("filePreviewModal");
   const fileName = $("previewFileName");
   const fileMeta = $("previewFileMeta");
@@ -834,7 +894,7 @@ function previewItem(item) {
   const openDriveBtn = $("previewOpenDriveBtn");
   const downloadBtn = $("previewDownloadBtn");
 
-  if (!modal || !iframe) return;
+  if (!modal) return;
 
   if (fileName) fileName.textContent = item.name || "File Preview";
   if (fileMeta) {
@@ -866,23 +926,27 @@ function previewItem(item) {
   }
 
   const previewUrl = isCustomUpload ? (item.webViewLink || item.webContentLink) : `https://drive.google.com/file/d/${encodeURIComponent(item.id)}/preview`;
-  iframe.onload = () => {
-    if (loading) {
-      loading.classList.add("opacity-0");
-      setTimeout(() => loading.classList.add("hidden"), 300);
-    }
-  };
-  iframe.src = previewUrl;
-
-  if (modal && modal.parentNode !== document.body) {
-    document.body.appendChild(modal);
+  if (iframe) {
+    iframe.onload = () => {
+      if (loading) {
+        loading.classList.add("opacity-0");
+        setTimeout(() => loading.classList.add("hidden"), 300);
+      }
+    };
+    iframe.src = previewUrl;
   }
+
   modal.classList.remove("hidden");
   modal.removeAttribute("hidden");
   modal.setAttribute("style", "display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); justify-content: center; align-items: center; pointer-events: auto !important;");
 }
 
 function closeFilePreviewModal() {
+  if (window.FilePreviewer && typeof window.FilePreviewer.close === "function") {
+    window.FilePreviewer.close();
+    currentPreviewItem = null;
+    return;
+  }
   const modal = $("filePreviewModal");
   const iframe = $("previewIframe");
   if (modal) {
@@ -997,7 +1061,7 @@ function triggerDirectDownloadFallback(downloadUrl, filename, item) {
 window.downloadItem = downloadItem;
 
 function getFileIcon(name, mime) {
-  const ext = name.split(".").pop().toLowerCase();
+  const ext = (name || "").split(".").pop().toLowerCase();
   if (mime?.includes("pdf") || ext === "pdf") return "📕";
   if (mime?.includes("image") || ["jpg","jpeg","png","gif","webp"].includes(ext)) return "🖼️";
   if (mime?.includes("video") || ["mp4","mkv","webm","mov"].includes(ext)) return "🎬";
@@ -1005,20 +1069,21 @@ function getFileIcon(name, mime) {
   if (["zip","rar","7z"].includes(ext)) return "🗜️";
   if (["doc","docx"].includes(ext)) return "📘";
   if (["xls","xlsx"].includes(ext)) return "📗";
-  if (["ppt","pptx"].includes(ext)) return "📙";
+  if (["ppt","pptx","pps","ppsx"].includes(ext) || mime?.includes("presentation") || mime?.includes("powerpoint")) return "📙";
   if (["cpp","c","js","html","css","py","java"].includes(ext)) return "💻";
   return "📄";
 }
 
 function fileType(item) {
   const m = item.mimeType || "";
-  if (m.includes("pdf")) return "PDF";
+  const ext = (item.name || "").split(".").pop().toLowerCase();
+  if (m.includes("pdf") || ext === "pdf") return "PDF";
   if (m.includes("image")) return "Image";
   if (m.includes("video")) return "Video";
   if (m.includes("audio")) return "Audio";
-  if (m.includes("spreadsheet")) return "Spreadsheet";
-  if (m.includes("presentation")) return "Presentation";
-  if (m.includes("document")) return "Document";
+  if (m.includes("spreadsheet") || ["xls","xlsx","csv"].includes(ext)) return "Spreadsheet";
+  if (m.includes("presentation") || m.includes("powerpoint") || ["ppt","pptx","pps","ppsx"].includes(ext)) return "Presentation";
+  if (m.includes("document") || ["doc","docx"].includes(ext)) return "Document";
   return (item.name.split(".").pop() || "File").toUpperCase();
 }
 
@@ -2868,14 +2933,18 @@ window.deleteItem = deleteItem;
 
 window.addEventListener("fmSharedDataSynced", (e) => {
   const pinConfig = (e.detail && e.detail.pinConfig) ? e.detail.pinConfig : null;
-  if (!pinConfig || !state.pin) return;
+  if (!state.pin) return;
   const rawEmail = (state.userEmail || localStorage.getItem("fm_user_email") || "").trim().toLowerCase();
   const adminEmail = (typeof _SEC_STORE !== "undefined" && _SEC_STORE.e) ? _secDec(_SEC_STORE.e).toLowerCase() : "";
   const isAdminUser = (rawEmail === adminEmail || rawEmail === "2007aniketsonwane@gmail.com");
 
-  if (!isAdminUser && pinConfig[state.pin] && pinConfig[state.pin].isLocked) {
+  const isLockedNow = (typeof isPinUniversallyLocked === "function")
+    ? isPinUniversallyLocked(state.pin)
+    : Boolean(pinConfig && pinConfig[state.pin]?.isLocked);
+
+  if (!isAdminUser && isLockedNow) {
     if (typeof exitVault === "function") exitVault();
-    if ($("pinMessage")) $("pinMessage").textContent = `🔒 Vault (${state.pin}) is currently locked by Admin.`;
+    if ($("pinMessage")) $("pinMessage").textContent = "🔒 This vault is currently locked by Admin.";
   }
 });
 

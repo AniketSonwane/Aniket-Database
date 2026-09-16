@@ -190,25 +190,28 @@
       </section>
 
       <!-- RIGHT COLUMN: C++ Execution & Step Explanation -->
-      <section class="glass-card right-code-panel">
+      <section class="right-code-panel">
         
-        <div class="code-card-header">
-          <h3 class="section-title" style="margin-bottom: 0;">
-            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-            </svg>
-            C++ Execution Track
-          </h3>
-          <span class="code-title-badge">C++ Array Queue</span>
-        </div>
+        <!-- C++ Code Block -->
+        <div class="glass-card code-card">
+          <div class="code-card-header">
+            <h3 class="section-title" style="margin-bottom: 0;">
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              C++ Execution Track
+            </h3>
+            <span class="code-title-badge">C++ Array Queue</span>
+          </div>
 
-        <!-- C++ Code Highlighter Container -->
-        <div id="cppCodeLines" class="code-container">
-          <!-- Code lines injected dynamically -->
+          <!-- C++ Code Highlighter Container -->
+          <div id="cppCodeLines" class="code-container">
+            <!-- Code lines injected dynamically -->
+          </div>
         </div>
 
         <!-- Step Explanation Card -->
-        <div class="step-exp-card">
+        <div class="glass-card step-exp-card" style="padding: 22px 26px;">
           <div class="exp-title">Step Explanation</div>
           <p id="stepDescText" class="exp-desc">
             Inserted value 30 at index 2. Enqueue complete.
@@ -216,7 +219,7 @@
         </div>
 
         <!-- History Log List Card -->
-        <div class="step-exp-card">
+        <div class="glass-card step-exp-card" style="padding: 22px 26px;">
           <div class="exp-title">Operation History</div>
           <div id="historyLogList" class="history-log-card">
             <!-- Dynamic Log Items -->
@@ -255,7 +258,7 @@
         <p class="text-sm text-slate-300 leading-relaxed mb-3">
           In a simple <strong>Linear Array Queue</strong>, once <code class="text-amber-400 font-mono">REAR == CAPACITY - 1</code>, no more elements can be enqueued — even if elements were dequeued from the front!
         </p>
-        <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50 font-mono text-xs text-slate-300 mb-2">
+        <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50 font-mono text-xs text-slate-300 mb-2 overflow-x-auto">
           [ Empty ] [ Empty ] [ 30 ] [ 40 ] [ 50 ]<br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↑&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↑<br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;FRONT&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;REAR (Full!)
@@ -270,40 +273,42 @@
         <h3 class="section-title">
           ⚡ Time & Space Complexity
         </h3>
-        <table class="table-custom">
-          <thead>
-            <tr>
-              <th>Operation</th>
-              <th>Time Complexity</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Enqueue</td>
-              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
-            </tr>
-            <tr>
-              <td>Dequeue</td>
-              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
-            </tr>
-            <tr>
-              <td>Peek</td>
-              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
-            </tr>
-            <tr>
-              <td>IsEmpty / IsFull</td>
-              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
-            </tr>
-            <tr>
-              <td>Clear</td>
-              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Reset Pointers)</td>
-            </tr>
-            <tr>
-              <td>Space Complexity</td>
-              <td><span class="font-mono text-indigo-400 font-bold">O(n)</span> (Fixed Array)</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-custom-wrapper">
+          <table class="table-custom">
+            <thead>
+              <tr>
+                <th>Operation</th>
+                <th>Time Complexity</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Enqueue</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+              </tr>
+              <tr>
+                <td>Dequeue</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+              </tr>
+              <tr>
+                <td>Peek</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+              </tr>
+              <tr>
+                <td>IsEmpty / IsFull</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+              </tr>
+              <tr>
+                <td>Clear</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Reset Pointers)</td>
+              </tr>
+              <tr>
+                <td>Space Complexity</td>
+                <td><span class="font-mono text-indigo-400 font-bold">O(n)</span> (Fixed Array)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- Array vs Linked List Queue Card -->
@@ -311,37 +316,39 @@
         <h3 class="section-title">
           🔄 Array Queue vs Linked List Queue
         </h3>
-        <table class="table-custom">
-          <thead>
-            <tr>
-              <th>Feature</th>
-              <th>Array Queue</th>
-              <th>Linked List Queue</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Size Limit</td>
-              <td><span class="text-rose-400 font-semibold">Fixed</span> (Pre-allocated)</td>
-              <td><span class="text-emerald-400 font-semibold">Dynamic</span> (Memory bound)</td>
-            </tr>
-            <tr>
-              <td>Enqueue / Dequeue</td>
-              <td><span class="text-emerald-400 font-semibold">O(1)</span></td>
-              <td><span class="text-emerald-400 font-semibold">O(1)</span></td>
-            </tr>
-            <tr>
-              <td>Memory Usage</td>
-              <td>Pre-allocated Array</td>
-              <td>Allocated per Node</td>
-            </tr>
-            <tr>
-              <td>Overflow Condition</td>
-              <td>When <code class="text-amber-400 font-mono">REAR == Capacity - 1</code></td>
-              <td>Only when system out of memory</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-custom-wrapper">
+          <table class="table-custom">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Array Queue</th>
+                <th>Linked List Queue</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Size Limit</td>
+                <td><span class="text-rose-400 font-semibold">Fixed</span> (Pre-allocated)</td>
+                <td><span class="text-emerald-400 font-semibold">Dynamic</span> (Memory bound)</td>
+              </tr>
+              <tr>
+                <td>Enqueue / Dequeue</td>
+                <td><span class="text-emerald-400 font-semibold">O(1)</span></td>
+                <td><span class="text-emerald-400 font-semibold">O(1)</span></td>
+              </tr>
+              <tr>
+                <td>Memory Usage</td>
+                <td>Pre-allocated Array</td>
+                <td>Allocated per Node</td>
+              </tr>
+              <tr>
+                <td>Overflow Condition</td>
+                <td>When <code class="text-amber-400 font-mono">REAR == Capacity - 1</code></td>
+                <td>Only when system out of memory</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </section>

@@ -41,14 +41,13 @@ function initAdminData() {
       } catch (err) {}
     }
 
-    const savedPins = localStorage.getItem("fm_pin_config");
-    if (savedPins) {
-      try {
-        const parsed = JSON.parse(savedPins);
-        if (parsed && typeof parsed === "object") {
-          adminState.pinConfig = parsed;
-        }
-      } catch (err) {}
+    // Universal PIN lock: No local storage for pinConfig!
+    try {
+      localStorage.removeItem("fm_pin_config");
+    } catch (e) {}
+
+    if (typeof getUniversalPinConfig === "function" && getUniversalPinConfig()) {
+      adminState.pinConfig = Object.assign({}, adminState.pinConfig, getUniversalPinConfig());
     }
 
     const defaultFolderId = _adminDec(_ADMIN_SEC.r);
@@ -56,44 +55,43 @@ function initAdminData() {
       adminState.pinConfig["1717"] = {
         id: defaultFolderId,
         name: "Academics",
-        defaultSemester: "3"
+        defaultSemester: "3",
+        isLocked: false
       };
-      savePinConfig();
     }
     if (!adminState.pinConfig["1919"] || adminState.pinConfig["1919"].id !== "ATTENDANCE_VAULT") {
       adminState.pinConfig["1919"] = {
         id: "ATTENDANCE_VAULT",
-        name: "Student Attendance Vault"
+        name: "Student Attendance Vault",
+        isLocked: Boolean(adminState.pinConfig["1919"]?.isLocked)
       };
-      savePinConfig();
     }
     if (adminState.pinConfig["2334"]) {
       delete adminState.pinConfig["2334"];
-      savePinConfig();
     }
     if (!adminState.pinConfig["1111"] || adminState.pinConfig["1111"].name !== "Aniket-Notes") {
       adminState.pinConfig["1111"] = {
         id: defaultFolderId,
         name: "Aniket-Notes",
-        noLoginRequired: true
+        noLoginRequired: true,
+        isLocked: Boolean(adminState.pinConfig["1111"]?.isLocked)
       };
-      savePinConfig();
     }
     if (!adminState.pinConfig["3333"] || adminState.pinConfig["3333"].name !== "Class Upload Folder") {
       adminState.pinConfig["3333"] = {
         id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
         name: "Class Upload Folder",
-        noLoginRequired: false
+        noLoginRequired: false,
+        isLocked: Boolean(adminState.pinConfig["3333"]?.isLocked)
       };
-      savePinConfig();
     }
     if (!adminState.pinConfig["2222"] || adminState.pinConfig["2222"].name !== "Class Upload Folder (No Login)") {
       adminState.pinConfig["2222"] = {
         id: "189EKcPT1Nzmk57RgfnnG0JRhIMRyhyNT",
         name: "Class Upload Folder (No Login)",
-        noLoginRequired: true
+        noLoginRequired: true,
+        isLocked: Boolean(adminState.pinConfig["2222"]?.isLocked)
       };
-      savePinConfig();
     }
   } catch (e) {
     console.warn("Error initializing admin storage:", e);
@@ -102,12 +100,25 @@ function initAdminData() {
 
 initAdminData();
 
-function savePinConfig() {
-  localStorage.setItem("fm_pin_config", JSON.stringify(adminState.pinConfig));
-  if (typeof saveSharedPinConfig === "function") {
-    saveSharedPinConfig(adminState.pinConfig);
+window.addEventListener("fmSharedDataSynced", (e) => {
+  if (e.detail && e.detail.pinConfig && typeof e.detail.pinConfig === "object") {
+    adminState.pinConfig = Object.assign({}, adminState.pinConfig, e.detail.pinConfig);
+    if (adminState.isAdminLoggedIn) {
+      if (typeof renderPinsList === "function") renderPinsList();
+      if (typeof currentEditPin !== "undefined" && currentEditPin && typeof renderAdminPinModalContent === "function") {
+        renderAdminPinModalContent(currentEditPin);
+      }
+    }
   }
+});
+
+async function savePinConfig() {
+  if (typeof saveSharedPinConfig === "function") {
+    return await saveSharedPinConfig(adminState.pinConfig);
+  }
+  return false;
 }
+window.savePinConfig = savePinConfig;
 
 function isGuestOrAdminEmail(email, vaultOrPin) {
   const e = String(email || "").trim().toLowerCase();
@@ -583,6 +594,14 @@ function renderPinsList() {
   const container = document.getElementById("adminPinsList");
   if (!container) return;
 
+  if (typeof getUniversalPinConfig === "function" && getUniversalPinConfig()) {
+    const uCfg = getUniversalPinConfig();
+    Object.keys(uCfg).forEach(k => {
+      if (!adminState.pinConfig[k]) adminState.pinConfig[k] = {};
+      Object.assign(adminState.pinConfig[k], uCfg[k]);
+    });
+  }
+
   const pins = [
     { pin: ADMIN_PIN, name: "Super Admin Vault", id: "SYSTEM_ADMIN", isAdmin: true, isLocked: false },
     ...Object.entries(adminState.pinConfig).map(([pin, cfg]) => ({
@@ -597,14 +616,14 @@ function renderPinsList() {
   container.innerHTML = pins.map(p => `
     <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl glass border border-slate-200 dark:border-slate-800">
       <div class="flex items-center gap-3">
-        <div class="flex h-9 w-9 items-center justify-center rounded-xl ${p.isAdmin ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white' : (p.isLocked ? 'bg-amber-500 text-white' : 'bg-gradient-to-br from-indigo-500 to-sky-500 text-white')} text-xs font-black">
+        <div class="flex h-9 w-9 items-center justify-center rounded-xl ${p.isAdmin ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white' : (p.isLocked ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' : 'bg-gradient-to-br from-indigo-500 to-sky-500 text-white')} text-xs font-black">
           ${p.isAdmin ? '👑' : (p.isLocked ? '🔒' : '🔑')}
         </div>
         <div>
           <div class="flex items-center gap-2">
             <span class="font-mono text-sm font-black text-slate-900 dark:text-slate-100">PIN: ${escapeAdminHtml(p.pin)}</span>
             ${p.isAdmin ? '<span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300">Admin</span>' : ''}
-            ${p.isLocked ? '<span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">LOCKED</span>' : ''}
+            ${p.isLocked ? '<span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300 animate-pulse">LOCKED (Universal)</span>' : ''}
           </div>
           <p class="text-xs font-medium text-slate-500 dark:text-slate-400">${escapeAdminHtml(p.name)} (${escapeAdminHtml(p.id)})</p>
         </div>
@@ -616,7 +635,7 @@ function renderPinsList() {
               Edit ⚙️ / Manage
             </button>
           ` : ''}
-          <button type="button" class="text-xs font-bold px-3.5 py-1.5 rounded-xl border transition ${p.isLocked ? 'border-amber-400 text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300' : 'border-slate-200 text-slate-700 bg-slate-100 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}" onclick="togglePinLock('${p.pin}')">
+          <button id="lockBtn_${p.pin}" type="button" class="text-xs font-bold px-3.5 py-1.5 rounded-xl border transition ${p.isLocked ? 'border-amber-400 text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 shadow-sm' : 'border-slate-200 text-slate-700 bg-slate-100 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}" onclick="togglePinLock('${p.pin}')">
             ${p.isLocked ? '🔓 Unlock' : '🔒 Lock'}
           </button>
         ` : `<span class="text-xs font-bold text-slate-400">System Protected</span>`}
@@ -625,28 +644,95 @@ function renderPinsList() {
   `).join("");
 }
 
-function togglePinLock(pin) {
+let isTogglingPinLock = false;
+
+async function togglePinLock(pin) {
   if (pin === ADMIN_PIN) {
     if (typeof showToast === "function") showToast("Admin PIN cannot be locked.");
     return;
   }
+  if (isTogglingPinLock) {
+    if (typeof showToast === "function") showToast("Universal lock update in progress...");
+    return;
+  }
 
   if (!adminState.pinConfig[pin]) {
+    const defaultFolderId = _adminDec(_ADMIN_SEC.r);
     adminState.pinConfig[pin] = {
-      id: "1yLR0kdaTMi7HbD1-oAo1Cm9n4bxADUdQ",
+      id: defaultFolderId,
       name: "Academics",
       isLocked: false
     };
   }
 
-  const isLocked = Boolean(adminState.pinConfig[pin].isLocked);
-  adminState.pinConfig[pin].isLocked = !isLocked;
-  savePinConfig();
+  const prevLocked = Boolean(adminState.pinConfig[pin].isLocked);
+  const nextLocked = !prevLocked;
 
-  const msg = !isLocked ? `🔒 Vault PIN ${pin} is now LOCKED.` : `🔓 Vault PIN ${pin} is UNLOCKED.`;
-  if (typeof showToast === "function") showToast(msg);
-  renderAdminDashboard();
+  // Optimistically set lock state
+  adminState.pinConfig[pin].isLocked = nextLocked;
+
+  // Mirror paired vaults
+  if (pin === "3333" && adminState.pinConfig["2222"]) {
+    adminState.pinConfig["2222"].isLocked = nextLocked;
+  } else if (pin === "2222" && adminState.pinConfig["3333"]) {
+    adminState.pinConfig["3333"].isLocked = nextLocked;
+  } else if (pin === "1919" && adminState.pinConfig["2024"]) {
+    adminState.pinConfig["2024"].isLocked = nextLocked;
+  } else if (pin === "2024" && adminState.pinConfig["1919"]) {
+    adminState.pinConfig["1919"].isLocked = nextLocked;
+  }
+
+  isTogglingPinLock = true;
+  renderPinsList();
+  if (typeof currentEditPin !== "undefined" && currentEditPin && typeof renderAdminPinModalContent === "function") {
+    renderAdminPinModalContent(currentEditPin);
+  }
+
+  if (typeof showToast === "function") {
+    showToast(`⏳ Updating Universal Lock for PIN ${pin} on Google Sheets...`);
+  }
+
+  const btn = document.getElementById(`lockBtn_${pin}`);
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add("opacity-60", "cursor-not-allowed");
+  }
+
+  try {
+    const success = await saveSharedPinConfig(adminState.pinConfig);
+    if (success) {
+      const msg = nextLocked 
+        ? `🔒 Vault PIN ${pin} is now UNIVERSALLY LOCKED on Google Sheets.` 
+        : `🔓 Vault PIN ${pin} is now UNLOCKED on Google Sheets.`;
+      if (typeof showToast === "function") showToast(msg);
+    } else {
+      adminState.pinConfig[pin].isLocked = prevLocked;
+      if (pin === "3333" && adminState.pinConfig["2222"]) adminState.pinConfig["2222"].isLocked = prevLocked;
+      if (pin === "2222" && adminState.pinConfig["3333"]) adminState.pinConfig["3333"].isLocked = prevLocked;
+      if (pin === "1919" && adminState.pinConfig["2024"]) adminState.pinConfig["2024"].isLocked = prevLocked;
+      if (pin === "2024" && adminState.pinConfig["1919"]) adminState.pinConfig["1919"].isLocked = prevLocked;
+      if (typeof showToast === "function") showToast("❌ Failed to save lock to Google Sheets. Reverted.");
+    }
+  } catch (err) {
+    console.error("Failed to update universal pin lock:", err);
+    adminState.pinConfig[pin].isLocked = prevLocked;
+    if (pin === "3333" && adminState.pinConfig["2222"]) adminState.pinConfig["2222"].isLocked = prevLocked;
+    if (pin === "2222" && adminState.pinConfig["3333"]) adminState.pinConfig["3333"].isLocked = prevLocked;
+    if (pin === "1919" && adminState.pinConfig["2024"]) adminState.pinConfig["2024"].isLocked = prevLocked;
+    if (pin === "2024" && adminState.pinConfig["1919"]) adminState.pinConfig["1919"].isLocked = prevLocked;
+    if (typeof showToast === "function") showToast("❌ Error connecting to Google Sheets. Reverted lock state.");
+  } finally {
+    isTogglingPinLock = false;
+    renderPinsList();
+    if (typeof currentEditPin !== "undefined" && currentEditPin && typeof renderAdminPinModalContent === "function") {
+      renderAdminPinModalContent(currentEditPin);
+    }
+    if (typeof renderAdminDashboard === "function") {
+      renderAdminDashboard();
+    }
+  }
 }
+window.togglePinLock = togglePinLock;
 
 let activeAdminModalTab = "security";
 let adminTTFilterSem = "3";
@@ -733,7 +819,7 @@ function renderAdminPinModalContent(pin) {
             <h4 class="text-base font-extrabold text-slate-900 dark:text-slate-100">Vault Access Control</h4>
             <p class="text-xs text-slate-500 dark:text-slate-400">Locking disables PIN ${pin} login for all non-admin users</p>
           </div>
-          <button type="button" onclick="togglePinLock('${pin}'); renderAdminPinModalContent('${pin}');" class="px-5 py-2.5 text-xs font-black rounded-2xl shadow-lg transition ${isLocked ? 'bg-amber-500 text-white hover:bg-amber-400' : 'bg-indigo-600 text-white hover:bg-indigo-500'}">
+          <button type="button" onclick="togglePinLock('${pin}')" class="px-5 py-2.5 text-xs font-black rounded-2xl shadow-lg transition ${isLocked ? 'bg-amber-500 text-white hover:bg-amber-400' : 'bg-indigo-600 text-white hover:bg-indigo-500'}">
             ${isLocked ? '🔒 Vault is LOCKED (Click to Unlock)' : '🔓 Vault is UNLOCKED (Click to Lock)'}
           </button>
         </div>

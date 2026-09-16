@@ -23,6 +23,7 @@ const vaultState = {
   history: [],
   historyIndex: -1
 };
+window.vaultState = vaultState;
 
 // Staged files for drag-and-drop & pre-upload renamer
 let stagedFiles = [];
@@ -59,15 +60,15 @@ function updateAuthUI() {
   if (userBadge) {
     if (currentPin === "2222") {
       if (hasLogin) {
-        userBadge.textContent = `Public Access (PIN 2222) • Logged in as ${email}`;
+        userBadge.textContent = `Public Access • Logged in as ${email}`;
       } else {
-        userBadge.textContent = `Public Access (PIN 2222 - No Login Required)`;
+        userBadge.textContent = `Public Access • No Login Required`;
       }
     } else {
       if (hasLogin) {
-        userBadge.textContent = `Logged in as ${email} (PIN 3333)`;
+        userBadge.textContent = `Logged in as ${email}`;
       } else {
-        userBadge.textContent = `Login Required (PIN 3333)`;
+        userBadge.textContent = `Login Required`;
       }
     }
   }
@@ -128,28 +129,29 @@ function getFileIcon(name, mime) {
   if (["zip","rar","7z"].includes(ext)) return "🗜️";
   if (["doc","docx"].includes(ext)) return "📘";
   if (["xls","xlsx"].includes(ext)) return "📗";
-  if (["ppt","pptx"].includes(ext)) return "📙";
+  if (["ppt","pptx","pps","ppsx","odp"].includes(ext) || mime?.includes("presentation") || mime?.includes("powerpoint")) return "📙";
   if (["cpp","c","js","html","css","py","java"].includes(ext)) return "💻";
   return "📄";
 }
 
 function fileType(item) {
   const m = item.mimeType || "";
-  if (m.includes("pdf")) return "PDF";
+  const ext = (item.name || "").split(".").pop().toLowerCase();
+  if (m.includes("pdf") || ext === "pdf") return "PDF";
   if (m.includes("image")) return "Image";
   if (m.includes("video")) return "Video";
   if (m.includes("audio")) return "Audio";
-  if (m.includes("spreadsheet") || m.includes("excel")) return "Spreadsheet";
-  if (m.includes("presentation") || m.includes("powerpoint")) return "Presentation";
-  if (m.includes("word") || m.includes("document")) return "Document";
+  if (m.includes("spreadsheet") || m.includes("excel") || ["xls","xlsx","csv"].includes(ext)) return "Spreadsheet";
+  if (m.includes("presentation") || m.includes("powerpoint") || ["ppt","pptx","pps","ppsx","odp"].includes(ext)) return "Presentation";
+  if (m.includes("word") || m.includes("document") || ["doc","docx"].includes(ext)) return "Document";
   if (m.includes("zip") || m.includes("compressed")) return "Archive";
-  const ext = (item.name || "").split(".").pop().toUpperCase();
-  return ext ? `${ext} File` : "File";
+  return ext ? `${ext.toUpperCase()} File` : "File";
 }
 
 function exitVault() {
   sessionStorage.removeItem("vault_3333_unlocked");
   sessionStorage.removeItem("vault_3333_pin");
+  sessionStorage.removeItem("vault_admin_override");
   localStorage.removeItem("fm_last_vault_pin");
   closeFilePreviewModal();
   closeUploadModal();
@@ -905,7 +907,7 @@ function renderItems() {
       if (itemUploader) {
         const displayUploader = (itemUploader === currentUserEmail)
           ? 'You'
-          : (itemUploader === 'guest_2222@class.vault' ? 'Guest (PIN 2222)' : itemUploader);
+          : (itemUploader === 'guest_2222@class.vault' ? 'Guest' : itemUploader);
         metaStr += ` • Uploaded by ${displayUploader}`;
       }
       if (isSearching && item.parentPath) {
@@ -924,7 +926,7 @@ function renderItems() {
             ${isFolder
               ? `<button class="action-btn open-btn" data-open="${escapeAttr(item.id)}">Open →</button>`
               : `
-                <button class="action-btn preview-btn" data-preview="${escapeAttr(item.id)}">Preview 👁️</button>
+                <button class="action-btn preview-btn" data-preview="${escapeAttr(item.id)}" onclick="window.previewItemById('${escapeAttr(item.id)}', event)">Preview 👁️</button>
                 <button class="action-btn" data-download="${escapeAttr(item.id)}">Download ↓</button>
                 ${canDelete
                   ? `<button class="action-btn delete-btn" data-delete="${escapeAttr(item.id)}">Delete 🗑️</button>`
@@ -946,6 +948,14 @@ function renderItems() {
       };
     });
 
+    listEl.querySelectorAll(".file-row:not(.is-folder)").forEach(row => {
+      row.onclick = (e) => {
+        if (e.target.closest(".row-actions") || e.target.closest("button") || e.target.closest("a")) return;
+        const itemId = row.dataset.id;
+        window.previewItemById(itemId, e);
+      };
+    });
+
     listEl.querySelectorAll("[data-open]").forEach(btn => {
       btn.onclick = async (e) => {
         e.stopPropagation();
@@ -957,8 +967,7 @@ function renderItems() {
     listEl.querySelectorAll("[data-preview]").forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation();
-        const item = pool.find(x => x.id === btn.dataset.preview);
-        if (item) previewItem(item);
+        window.previewItemById(btn.dataset.preview, e);
       };
     });
 
@@ -1001,12 +1010,30 @@ function dataURLtoBlob(dataurl) {
   }
 }
 
+function previewItemById(id, event) {
+  if (event && typeof event.stopPropagation === "function") event.stopPropagation();
+  if (window.FilePreviewer && typeof window.FilePreviewer.openById === "function") {
+    window.FilePreviewer.openById(id, event);
+    return;
+  }
+  const pool = [...(vaultState.items || []), ...(vaultState.vaultIndex || [])];
+  const item = pool.find(x => x.id === id);
+  if (item) previewItem(item);
+}
+window.previewItemById = previewItemById;
+
 function previewItem(item) {
   if (!item) return;
 
+  // Delegate to unified FilePreviewer engine if available
+  if (window.FilePreviewer && typeof window.FilePreviewer.open === "function") {
+    window.FilePreviewer.open(item);
+    return;
+  }
+
   const modal = $("filePreviewModal");
   const iframe = $("previewIframe");
-  if (!modal || !iframe) return;
+  if (!modal) return;
 
   if ($("previewFileName")) $("previewFileName").textContent = item.name || "File Preview";
   if ($("previewFileMeta")) $("previewFileMeta").textContent = `${fileType(item)}${item.size ? " • " + formatBytes(Number(item.size)) : ""}`;
@@ -1049,12 +1076,17 @@ function previewItem(item) {
     finalPreviewUrl = `https://drive.google.com/file/d/${encodeURIComponent(item.id)}/preview`;
   }
 
-  iframe.src = finalPreviewUrl;
+  if (iframe) iframe.src = finalPreviewUrl;
   modal.classList.remove("hidden");
+  modal.removeAttribute("hidden");
   modal.setAttribute("style", "display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); justify-content: center; align-items: center; pointer-events: auto !important;");
 }
 
 function closeFilePreviewModal() {
+  if (window.FilePreviewer && typeof window.FilePreviewer.close === "function") {
+    window.FilePreviewer.close();
+    return;
+  }
   const modal = $("filePreviewModal");
   const iframe = $("previewIframe");
   if (modal) {
@@ -1196,14 +1228,33 @@ function setupDropZoneEvents() {
   }, false);
 }
 
+function isCurrentUserSuperAdmin() {
+  const email = (
+    (typeof vaultState !== "undefined" && vaultState.userEmail) ||
+    localStorage.getItem("fm_user_email") ||
+    ""
+  ).trim().toLowerCase();
+
+  const adminEmail = (typeof _ADMIN_SEC !== "undefined" && _ADMIN_SEC.e)
+    ? _adminDec(_ADMIN_SEC.e).toLowerCase()
+    : "2007aniketsonwane@gmail.com";
+
+  return Boolean(
+    email === adminEmail ||
+    email === "2007aniketsonwane@gmail.com" ||
+    sessionStorage.getItem("vault_admin_override") === "true" ||
+    (typeof adminState !== "undefined" && adminState.isAdminLoggedIn)
+  );
+}
+
 function isVault3333LockedByAdmin() {
-  try {
-    const raw = localStorage.getItem("fm_pin_config");
-    if (raw) {
-      const cfg = JSON.parse(raw);
-      if (cfg && ((cfg["3333"] && cfg["3333"].isLocked) || (cfg["2222"] && cfg["2222"].isLocked))) return true;
-    }
-  } catch(e) {}
+  // Super Admin can always access locked vaults
+  if (isCurrentUserSuperAdmin()) {
+    return false;
+  }
+  if (typeof isPinUniversallyLocked === "function") {
+    return isPinUniversallyLocked("3333") || isPinUniversallyLocked("2222");
+  }
   return false;
 }
 
@@ -1216,18 +1267,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const isUnlocked = sessionStorage.getItem("vault_3333_unlocked") === "true";
   const isLockedByAdmin = isVault3333LockedByAdmin();
   const currentPin = getCurrentVaultPin();
+  const isAdmin = isCurrentUserSuperAdmin();
   
   if (!isUnlocked || isLockedByAdmin) {
     sessionStorage.removeItem("vault_3333_unlocked");
     sessionStorage.removeItem("vault_3333_pin");
+    sessionStorage.removeItem("vault_admin_override");
     window.location.href = "./index.html";
     return;
   }
 
-  // If opening via PIN 3333, Google sign-in is required
-  if (currentPin === "3333" && !hasValidGoogleLogin()) {
+  // If opening via PIN 3333, Google sign-in is required (unless Super Admin)
+  if (currentPin === "3333" && !hasValidGoogleLogin() && !isAdmin) {
     sessionStorage.removeItem("vault_3333_unlocked");
     sessionStorage.removeItem("vault_3333_pin");
+    sessionStorage.removeItem("vault_admin_override");
     window.location.href = "./index.html";
     return;
   }
@@ -1246,6 +1300,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (isVault3333LockedByAdmin()) {
       sessionStorage.removeItem("vault_3333_unlocked");
       sessionStorage.removeItem("vault_3333_pin");
+      sessionStorage.removeItem("vault_admin_override");
       window.location.href = "./index.html";
     }
   });

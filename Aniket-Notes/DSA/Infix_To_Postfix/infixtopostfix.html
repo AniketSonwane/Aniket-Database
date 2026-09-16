@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infix to Postfix Conversion Visualizer - Stack ADT</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class"
+    };
+  </script>
+  <link rel="stylesheet" href="infixtopostfix-styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Navigation Bar -->
+    <nav class="top-bar">
+      <div class="brand-badge">Aniket's • DSA Visualizer</div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button id="themeToggleBtn" type="button" aria-label="Toggle dark and light mode" title="Toggle Light / Dark Theme"
+          class="flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-white">
+          <span id="themeIcon"
+            class="flex h-6 w-6 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.7 6.7 0 0 0 9.8 9.8Z"/>
+            </svg>
+          </span>
+          <span id="themeLabel" class="hidden sm:block">Light</span>
+        </button>
+        <a href="../../../aniket-notes.html" class="back-link">
+          ← Back to Aniket-Notes
+        </a>
+      </div>
+    </nav>
+
+    <!-- Hero Header -->
+    <header class="header-hero">
+      <h1 class="hero-title">Infix to Postfix Visualizer</h1>
+      <h2 class="hero-subtitle">Stack-Based Conversion with Operator Precedence & Validation</h2>
+      <p class="hero-tagline">Developed by Aniket Sonwane • Interactive C++ Algorithm Simulation</p>
+    </header>
+
+    <!-- 1. Input Section Card -->
+    <section class="glass-card">
+      <div class="input-header">
+        <h3 class="section-title">
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Enter Infix Expression
+        </h3>
+      </div>
+
+      <div class="input-row">
+        <input type="text" id="infixInput" class="expr-input" placeholder="e.g. A+B*(C-D)" value="A+B*(C-D)" spellcheck="false" autocomplete="off">
+        <button id="convertBtn" class="btn btn-primary">⚡ Convert</button>
+        <button id="resetBtn" class="btn btn-secondary">🔄 Reset</button>
+      </div>
+
+      <!-- Quick Presets -->
+      <div class="presets-row">
+        <span class="text-xs text-slate-400 font-semibold mr-1">Quick Presets:</span>
+        <button class="preset-chip" data-expr="A+B*(C-D)">A+B*(C-D)</button>
+        <button class="preset-chip" data-expr="(A+B)*C">(A+B)*C</button>
+        <button class="preset-chip" data-expr="A+B*C">A+B*C</button>
+        <button class="preset-chip" data-expr="A^B^C">A^B^C</button>
+        <button class="preset-chip" data-expr="(A+B)/(C-D)">(A+B)/(C-D)</button>
+        
+        <span class="text-xs text-rose-400 font-semibold ml-2 mr-1">Invalid Tests:</span>
+        <button class="preset-chip invalid" data-expr="A++B">A++B</button>
+        <button class="preset-chip invalid" data-expr="+A">+A</button>
+        <button class="preset-chip invalid" data-expr="A+B*">A+B*</button>
+        <button class="preset-chip invalid" data-expr="(A+B">(A+B</button>
+        <button class="preset-chip invalid" data-expr="A+B)">A+B)</button>
+        <button class="preset-chip invalid" data-expr="AB">AB</button>
+        <button class="preset-chip invalid" data-expr="A(B+C)">A(B+C)</button>
+        <button class="preset-chip invalid" data-expr="A@B">A@B</button>
+      </div>
+    </section>
+
+    <!-- 2. Playback & Timeline Controls Card -->
+    <section class="glass-card controls-card">
+      <div class="controls-row">
+        <div class="nav-controls-group">
+          <button id="startBtn" class="btn btn-primary" title="Start from beginning">▶ Start</button>
+          <button id="prevBtn" class="btn btn-secondary" title="Previous Step">⏮ Previous</button>
+          <button id="playBtn" class="btn btn-amber" title="Auto Play">▶ Auto Play</button>
+          <button id="nextBtn" class="btn btn-secondary" title="Next Step">Next ⏭</button>
+          <button id="restartBtn" class="btn btn-secondary" title="Restart">↻ Reset</button>
+        </div>
+
+        <div class="step-info">
+          <span id="stepCounterText">Step: 1 / 1</span>
+        </div>
+
+        <div class="speed-select-group">
+          <span class="text-xs text-slate-400 font-semibold mr-1">Speed:</span>
+          <button id="speedSlowBtn" class="speed-btn">Slow</button>
+          <button id="speedNormBtn" class="speed-btn active">Normal</button>
+          <button id="speedFastBtn" class="speed-btn">Fast</button>
+        </div>
+      </div>
+
+      <div class="w-full">
+        <input type="range" id="timelineSlider" class="timeline-slider" min="1" max="1" value="1">
+      </div>
+    </section>
+
+    <!-- 3. Main Two-Column Visualizer Layout -->
+    <main class="grid-main-visualizer">
+
+      <!-- LEFT COLUMN: Visualization Stage -->
+      <section class="glass-card left-stage">
+
+        <!-- Expression Ribbon (Current Character Highlight) -->
+        <div class="expr-tape-card">
+          <div class="expr-tape-title">
+            <span>Infix Expression Scanning Tape</span>
+            <span class="text-sky-400 font-mono text-xs">Left ➔ Right</span>
+          </div>
+          <div id="exprTapeRow" class="expr-tape-row">
+            <!-- Dynamic character boxes injected by JS -->
+          </div>
+        </div>
+
+        <!-- Live Variables State Bar -->
+        <div class="vars-state-bar">
+          <div class="var-stat-item">
+            <span class="var-stat-lbl">Infix</span>
+            <span id="varInfixVal" class="var-stat-val text-sky-400">A+B*(C-D)</span>
+          </div>
+          <div class="var-stat-item">
+            <span class="var-stat-lbl">stack&lt;char&gt; s</span>
+            <span id="varStackVal" class="var-stat-val text-purple-400">0 (Top: None)</span>
+          </div>
+          <div class="var-stat-item">
+            <span class="var-stat-lbl">string postfix</span>
+            <span id="varPostfixVal" class="var-stat-val text-emerald-400">""</span>
+          </div>
+          <div class="var-stat-item">
+            <span class="var-stat-lbl">bool operand</span>
+            <span id="varOperandVal" class="var-stat-val text-amber-400">false (Expect Rand)</span>
+          </div>
+        </div>
+
+        <!-- Main Interactive Visual Stage: Stack + Postfix + Precedence -->
+        <div class="stage-interactive-grid">
+          
+          <!-- Stack Visual Column -->
+          <div class="stack-visual-column">
+            <div class="stack-title">
+              <span>📚 Visual Stack</span>
+            </div>
+            <div id="stackBracketVessel" class="stack-bracket-vessel">
+              <!-- Dynamic Stack Boxes injected by JS -->
+            </div>
+          </div>
+
+          <!-- Postfix & Precedence Right Stage -->
+          <div class="stage-right-area">
+            
+            <!-- Postfix Output Box Ribbon -->
+            <div class="postfix-card">
+              <div class="postfix-header">
+                <span>Postfix Output Tokens [ string postfix ]</span>
+                <span class="text-emerald-400 font-mono text-xs">Accumulator</span>
+              </div>
+              <div id="postfixBoxesRow" class="postfix-boxes-row">
+                <!-- Dynamic Postfix Boxes injected by JS -->
+              </div>
+            </div>
+
+            <!-- Operator Precedence Panel -->
+            <div class="precedence-card">
+              <div class="precedence-title">
+                <span>Operator Precedence Hierarchy</span>
+              </div>
+              <div class="precedence-items-grid">
+                <div id="precExp" class="prec-item">
+                  <span class="prec-op">^</span>
+                  <span class="prec-lvl">Priority 3 (High)</span>
+                </div>
+                <div id="precMulDiv" class="prec-item">
+                  <span class="prec-op">* /</span>
+                  <span class="prec-lvl">Priority 2 (Mid)</span>
+                </div>
+                <div id="precAddSub" class="prec-item">
+                  <span class="prec-op">+ -</span>
+                  <span class="prec-lvl">Priority 1 (Low)</span>
+                </div>
+                <div id="precParen" class="prec-item">
+                  <span class="prec-op">(</span>
+                  <span class="prec-lvl">Priority 0 (Sentinel)</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Validation Error Alert Banner -->
+        <div id="invalidAlertBanner" class="invalid-alert-banner">
+          <span class="text-xl">🛑</span>
+          <span id="invalidAlertText">Invalid Expression!</span>
+        </div>
+
+        <!-- Current Step Explanation Box -->
+        <div class="step-exp-box">
+          <div class="step-exp-title">Current Step Explanation</div>
+          <p id="stepExpText" class="step-exp-text">
+            Initializing Infix to Postfix converter...
+          </p>
+        </div>
+
+      </section>
+
+      <!-- RIGHT COLUMN: C++ Code & Conversion Steps Table -->
+      <section class="right-panel">
+        
+        <!-- C++ Execution Track Card -->
+        <div class="glass-card code-card">
+          <div class="code-card-header">
+            <h3 class="section-title" style="margin-bottom: 0;">
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              C++ Execution Track
+            </h3>
+            <span class="code-title-badge">InfixToPostfix.cpp</span>
+          </div>
+
+          <div id="cppCodeLines" class="code-container">
+            <!-- C++ Code Lines injected by JS -->
+          </div>
+        </div>
+
+        <!-- Conversion Steps Table Card -->
+        <div class="glass-card steps-table-card" style="padding: 24px 28px;">
+          <div class="flex justify-between items-center">
+            <h3 class="section-title" style="margin-bottom: 0;">
+              📊 Conversion Trace Table
+            </h3>
+          </div>
+          <div class="table-wrapper">
+            <table class="steps-table">
+              <thead>
+                <tr>
+                  <th>Step</th>
+                  <th>Char</th>
+                  <th>Action</th>
+                  <th>Stack</th>
+                  <th>Postfix</th>
+                </tr>
+              </thead>
+              <tbody id="stepsTableBody">
+                <!-- Dynamic Table Rows injected by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- 4. Theory & Educational Sections -->
+    <section class="theory-grid">
+      
+      <!-- What is Infix & Postfix? -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          📚 Infix vs Postfix Expressions
+        </h3>
+        <p class="text-sm text-slate-300 leading-relaxed mb-3">
+          <strong>Infix:</strong> Operators reside between operands (e.g. <code class="text-sky-400 font-mono">A + B</code>). Familiar to humans, but requires parentheses and precedence rules to parse.
+        </p>
+        <p class="text-sm text-slate-300 leading-relaxed">
+          <strong>Postfix (RPN):</strong> Operators follow their operands (e.g. <code class="text-emerald-400 font-mono">A B +</code>). Computers evaluate postfix in a single linear pass using an evaluation stack without needing parentheses!
+        </p>
+      </div>
+
+      <!-- Precedence & Associativity -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          ⚡ Precedence & Associativity
+        </h3>
+        <p class="text-sm text-slate-300 leading-relaxed mb-3">
+          When an operator arrives, the stack pops any operator that has <strong>greater or equal precedence</strong> (<code class="text-purple-400 font-mono">&gt;= priority</code>), because that operator must be evaluated first in the postfix string!
+        </p>
+        <ul class="text-xs text-slate-400 space-y-1 pl-4 list-disc font-mono">
+          <li><strong class="text-amber-400">^</strong>: Priority 3 (Exponentiation)</li>
+          <li><strong class="text-sky-400">* /</strong>: Priority 2 (Multiplication & Division)</li>
+          <li><strong class="text-purple-400">+ -</strong>: Priority 1 (Addition & Subtraction)</li>
+          <li><strong class="text-slate-400">(</strong>: Priority 0 (Opening Parenthesis)</li>
+        </ul>
+      </div>
+
+      <!-- Syntactic Validation with bool operand -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          🛡️ The `bool operand` Validation
+        </h3>
+        <p class="text-sm text-slate-300 leading-relaxed mb-3">
+          The boolean flag <code class="text-amber-400 font-mono">operand</code> ensures that operands and operators alternate strictly:
+        </p>
+        <ul class="text-xs text-slate-400 space-y-1.5 pl-4 list-disc font-mono">
+          <li><code class="text-rose-400">operand == true</code>: Just read an operand or <code class="text-indigo-400">)</code>. Now expecting an operator or <code class="text-indigo-400">)</code>.</li>
+          <li><code class="text-sky-400">operand == false</code>: Just pushed an operator or <code class="text-indigo-400">(</code>. Now expecting an operand.</li>
+          <li>Catches <code class="text-rose-400">+A</code>, <code class="text-rose-400">A++B</code>, <code class="text-rose-400">AB</code>, <code class="text-rose-400">A(B+C)</code>, and <code class="text-rose-400">A+B+</code>!</li>
+        </ul>
+      </div>
+
+      <!-- Time & Space Complexity -->
+      <div class="glass-card">
+        <h3 class="section-title">
+          ⚡ Time & Space Complexity
+        </h3>
+        <div class="table-custom-wrapper">
+          <table class="table-custom">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Complexity</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Time Complexity</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(N)</span></td>
+                <td>Each character scanned once; pushed & popped at most once.</td>
+              </tr>
+              <tr>
+                <td>Auxiliary Stack Space</td>
+                <td><span class="font-mono text-sky-400 font-bold">O(N)</span></td>
+                <td>Stack stores operators and parentheses in worst case.</td>
+              </tr>
+              <tr>
+                <td>Output String Space</td>
+                <td><span class="font-mono text-purple-400 font-bold">O(N)</span></td>
+                <td>Contains all operands and operators without parentheses.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 5. Complete C++ Code Block Card -->
+    <section class="glass-card">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="section-title" style="margin-bottom: 0;">
+          💻 Complete C++ Implementation
+        </h3>
+      </div>
+      <div class="code-block-full">
+        <button id="copyCodeBtn" class="copy-btn">Copy Code</button>
+        <pre><code id="fullCppCodeBlock">#include &lt;iostream&gt;
+#include &lt;stack&gt;
+#include &lt;cctype&gt;
+using namespace std;
+
+class InfixToPostfix {
+public:
+    int priority(char ch) {
+        if (ch == '^') return 3;
+        if (ch == '*' || ch == '/') return 2;
+        if (ch == '+' || ch == '-') return 1;
+        return 0;
+    }
+
+    bool isOperator(char ch) {
+        return ch == '+' || ch == '-' ||
+               ch == '*' || ch == '/' || ch == '^';
+    }
+
+    string convert(string infix) {
+        stack&lt;char&gt; s;
+        string postfix = "";
+        bool operand = false;
+
+        for (char ch : infix) {
+
+            if (isalnum(ch)) {
+                if (operand) return "Invalid Expression";
+
+                postfix += ch;
+                operand = true;
+            }
+
+            else if (ch == '(') {
+                if (operand) return "Invalid Expression";
+
+                s.push(ch);
+                operand = false;
+            }
+
+            else if (ch == ')') {
+                if (!operand) return "Invalid Expression";
+
+                while (!s.empty() && s.top() != '(') {
+                    postfix += s.top();
+                    s.pop();
+                }
+
+                if (s.empty())
+                    return "Invalid Expression";
+
+                s.pop();
+                operand = true;
+            }
+
+            else if (isOperator(ch)) {
+                if (!operand) return "Invalid Expression";
+
+                while (!s.empty() && s.top() != '(' &&
+                       priority(s.top()) &gt;= priority(ch)) {
+                    postfix += s.top();
+                    s.pop();
+                }
+
+                s.push(ch);
+                operand = false;
+            }
+
+            else {
+                return "Invalid Expression";
+            }
+        }
+
+        if (!operand)
+            return "Invalid Expression";
+
+        while (!s.empty()) {
+            if (s.top() == '(')
+                return "Invalid Expression";
+
+            postfix += s.top();
+            s.pop();
+        }
+
+        return postfix;
+    }
+};
+
+int main() {
+    InfixToPostfix obj;
+
+    string infix;
+
+    cout &lt;&lt; "Enter Infix: ";
+    cin &gt;&gt; infix;
+
+    cout &lt;&lt; "Postfix: " &lt;&lt; obj.convert(infix) &lt;&lt; endl;
+
+    return 0;
+}</code></pre>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <p>© 2026 Infix to Postfix Visualizer • Developed by Aniket Sonwane • Data Structures & Algorithms</p>
+    </footer>
+
+  </div>
+
+  <!-- JavaScript Application Files -->
+  <script src="infixtopostfix-engine.js"></script>
+  <script src="infixtopostfix-visualizer.js"></script>
+  <script src="infixtopostfix-app.js"></script>
+</body>
+</html>

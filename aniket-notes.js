@@ -15,6 +15,7 @@ const vaultState = {
   currentCategory: null,
   breadcrumb: []
 };
+window.vaultState = vaultState;
 
 // Curated subjects & topics structure matching the exact wireframe
 const NOTES_DATA = {
@@ -49,7 +50,9 @@ const NOTES_DATA = {
         topics: [
           { id: "Stack_ADT_Array", name: "Stack (Array Implementation)", desc: "Interactive C++ Stack debugger, LIFO visualizer, memory layout & theory", localUrl: "./Aniket-Notes/DSA/Stack_ADT_Array/stackadt.html" },
           { id: "Stack_ADT_Linked_List", name: "Stack (Linked List Implementation)", desc: "Dynamic node-based LIFO stack operations, top pointer & visualizer", localUrl: "./Aniket-Notes/DSA/Stack_ADT_Linked_List/stack.html" },
-          { id: "Queue_ADT_Array", name: "Queue (Array / Circular Implementation)", desc: "FIFO queue operations, front/rear pointers, array representation & visualizer", localUrl: "./Aniket-Notes/DSA/Queue_ADT_Array/queue.html" },
+          { id: "Infix_To_Postfix", name: "Infix to Postfix Conversion", desc: "Stack-based expression parser, operator precedence, parentheses & validation visualizer", localUrl: "./Aniket-Notes/DSA/Infix_To_Postfix/infixtopostfix.html" },
+          { id: "Queue_ADT_Array", name: "Queue (Linear Array Implementation)", desc: "FIFO queue operations, front/rear pointers, linear limitation & visualizer", localUrl: "./Aniket-Notes/DSA/Queue_ADT_Array/queue.html" },
+          { id: "Circular_Queue", name: "Circular Queue (Array Implementation)", desc: "Modulo wrapping (rear+1)%5, circular slot reuse, front/rear visualizer & notes", localUrl: "./Aniket-Notes/DSA/Circular_Queue/circularqueue.html" },
           { id: "Queue_ADT_Linked_List", name: "Queue (Linked List Implementation)", desc: "Dynamic node-based FIFO queue operations, front & rear pointer visualizer", localUrl: "./Aniket-Notes/DSA/Queue_ADT_Linked_List/queue.html" }
         ]
       }
@@ -112,7 +115,7 @@ function submitPin() {
     sessionStorage.setItem("vault_1111_unlocked", "true");
     unlockVaultUI();
   } else {
-    $("pinMessage").textContent = "Incorrect PIN. Try 1111.";
+    $("pinMessage").textContent = "Incorrect PIN. Please try again.";
     const card = document.querySelector(".pin-card");
     if (card) {
       card.classList.add("shake");
@@ -165,7 +168,7 @@ function renderAniketNotesHome() {
       </span>
     </div>
 
-    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3.5 sm:gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
   `;
 
   subjects.forEach(code => {
@@ -341,6 +344,10 @@ function previewTopic(id, name, localUrl) {
 }
 
 function closeFilePreviewModal() {
+  if (window.FilePreviewer && typeof window.FilePreviewer.close === "function") {
+    window.FilePreviewer.close();
+    return;
+  }
   const modal = $("filePreviewModal");
   const iframe = $("previewIframe");
   if (modal) {
@@ -426,14 +433,27 @@ async function loadDriveFiles() {
   }
 }
 
+function isCurrentUserSuperAdmin() {
+  const email = (
+    localStorage.getItem("fm_user_email") ||
+    ""
+  ).trim().toLowerCase();
+
+  return Boolean(
+    email === "2007aniketsonwane@gmail.com" ||
+    sessionStorage.getItem("vault_admin_override") === "true" ||
+    (typeof adminState !== "undefined" && adminState.isAdminLoggedIn)
+  );
+}
+
 function isVault1111LockedByAdmin() {
-  try {
-    const raw = localStorage.getItem("fm_pin_config");
-    if (raw) {
-      const cfg = JSON.parse(raw);
-      if (cfg && cfg["1111"] && cfg["1111"].isLocked) return true;
-    }
-  } catch(e) {}
+  // Super Admin can always access locked vaults
+  if (isCurrentUserSuperAdmin()) {
+    return false;
+  }
+  if (typeof isPinUniversallyLocked === "function") {
+    return isPinUniversallyLocked("1111");
+  }
   return false;
 }
 
@@ -446,6 +466,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (!isUnlocked || isLockedByAdmin) {
     sessionStorage.removeItem("vault_1111_unlocked");
+    sessionStorage.removeItem("vault_admin_override");
     window.location.href = "./index.html";
     return;
   }
@@ -456,6 +477,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("fmSharedDataSynced", () => {
     if (isVault1111LockedByAdmin()) {
       sessionStorage.removeItem("vault_1111_unlocked");
+      sessionStorage.removeItem("vault_admin_override");
       window.location.href = "./index.html";
     }
   });

@@ -76,23 +76,12 @@ class QueueVisualizer {
 
       const lineCodeSpan = document.createElement('span');
       lineCodeSpan.className = 'line-code';
-      lineCodeSpan.innerHTML = this.formatSyntax(item.text);
+      lineCodeSpan.textContent = item.text;
 
       lineDiv.appendChild(lineNumSpan);
       lineDiv.appendChild(lineCodeSpan);
       this.codeLinesContainer.appendChild(lineDiv);
     });
-  }
-
-  formatSyntax(codeStr) {
-    if (codeStr.startsWith('//')) {
-      return `<span class="syn-cm">${codeStr}</span>`;
-    }
-    return codeStr
-      .replace(/\b(int|bool|void)\b/g, '<span class="syn-type">$1</span>')
-      .replace(/\b(return|if)\b/g, '<span class="syn-kw">$1</span>')
-      .replace(/\b(front|rear|value|a|val|capacity)\b/g, '<span class="syn-fn">$1</span>')
-      .replace(/\b(\d+)\b/g, '<span class="syn-num">$1</span>');
   }
 
   highlightCodeLine(lineNum) {
@@ -212,15 +201,20 @@ class QueueVisualizer {
 
     // Calculate percent positions for FRONT and REAR badges across 5 cells
     const cellPercentWidth = 100 / array.length;
+    const getBadgeLeft = (idx) => {
+      const centerPercent = (idx + 0.5) * cellPercentWidth;
+      return Math.max(14, Math.min(86, centerPercent));
+    };
 
     if (front !== -1 || rear !== -1) {
       if (front === rear && front !== -1) {
         // Both FRONT and REAR at same index
         const bothBadge = document.createElement('div');
         bothBadge.className = 'pointer-badge both-badge';
-        bothBadge.style.left = `calc(${front * cellPercentWidth}% + 10px)`;
+        bothBadge.style.left = `${getBadgeLeft(front)}%`;
+        bothBadge.style.transform = 'translateX(-50%)';
         bothBadge.innerHTML = `
-          <span>FRONT & REAR</span>
+          <span>FRONT & REAR (${front})</span>
           <span class="pointer-arrow-down">↓</span>
         `;
         pointersRow.appendChild(bothBadge);
@@ -228,7 +222,8 @@ class QueueVisualizer {
         if (front !== -1 && front <= rear) {
           const frontBadge = document.createElement('div');
           frontBadge.className = 'pointer-badge front-badge';
-          frontBadge.style.left = `calc(${front * cellPercentWidth}% + 6px)`;
+          frontBadge.style.left = `${getBadgeLeft(front)}%`;
+          frontBadge.style.transform = 'translateX(-50%)';
           frontBadge.innerHTML = `
             <span>FRONT (${front})</span>
             <span class="pointer-arrow-down">↓</span>
@@ -238,7 +233,8 @@ class QueueVisualizer {
         if (rear !== -1 && rear >= front) {
           const rearBadge = document.createElement('div');
           rearBadge.className = 'pointer-badge rear-badge';
-          rearBadge.style.left = `calc(${rear * cellPercentWidth}% + 6px)`;
+          rearBadge.style.left = `${getBadgeLeft(rear)}%`;
+          rearBadge.style.transform = 'translateX(-50%)';
           rearBadge.innerHTML = `
             <span>REAR (${rear})</span>
             <span class="pointer-arrow-down">↓</span>
@@ -254,7 +250,7 @@ class QueueVisualizer {
       uninitBadge.style.transform = 'translateX(-50%)';
       uninitBadge.style.borderColor = 'var(--text-dim)';
       uninitBadge.style.color = 'var(--text-dim)';
-      uninitBadge.textContent = 'FRONT = -1 | REAR = -1 (Uninitialized)';
+      uninitBadge.textContent = 'FRONT = -1 | REAR = -1';
       pointersRow.appendChild(uninitBadge);
     }
 

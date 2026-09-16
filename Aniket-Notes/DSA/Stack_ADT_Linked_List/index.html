@@ -170,25 +170,28 @@
       </section>
 
       <!-- RIGHT COLUMN: C++ Execution & Step Explanation -->
-      <section class="glass-card right-code-panel">
+      <section class="right-code-panel">
         
-        <div class="code-card-header">
-          <h3 class="section-title" style="margin-bottom: 0;">
-            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-            </svg>
-            C++ Execution Track
-          </h3>
-          <span class="code-title-badge">C++ Linked List</span>
-        </div>
+        <!-- C++ Code Block -->
+        <div class="glass-card code-card">
+          <div class="code-card-header">
+            <h3 class="section-title" style="margin-bottom: 0;">
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              C++ Execution Track
+            </h3>
+            <span class="code-title-badge">C++ Linked List</span>
+          </div>
 
-        <!-- C++ Code Highlighter Container -->
-        <div id="cppCodeLines" class="code-container">
-          <!-- Code lines injected dynamically -->
+          <!-- C++ Code Highlighter Container -->
+          <div id="cppCodeLines" class="code-container">
+            <!-- Code lines injected dynamically -->
+          </div>
         </div>
 
         <!-- Step Explanation Card -->
-        <div class="step-exp-card">
+        <div class="glass-card step-exp-card" style="padding: 22px 26px;">
           <div class="exp-title">Step Explanation</div>
           <p id="stepDescText" class="exp-desc">
             Updated TOP pointer to point to new node (30). Push operation complete.
@@ -196,7 +199,7 @@
         </div>
 
         <!-- History Log List Card -->
-        <div class="step-exp-card">
+        <div class="glass-card step-exp-card" style="padding: 22px 26px;">
           <div class="exp-title">Operation History</div>
           <div id="historyLogList" class="history-log-card">
             <!-- Dynamic Log Items -->
@@ -233,40 +236,42 @@
         <h3 class="section-title">
           ⚡ Time & Space Complexity
         </h3>
-        <table class="table-custom">
-          <thead>
-            <tr>
-              <th>Operation</th>
-              <th>Time Complexity</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Push</td>
-              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
-            </tr>
-            <tr>
-              <td>Pop</td>
-              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
-            </tr>
-            <tr>
-              <td>Peek</td>
-              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
-            </tr>
-            <tr>
-              <td>IsEmpty</td>
-              <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
-            </tr>
-            <tr>
-              <td>Clear</td>
-              <td><span class="font-mono text-indigo-400 font-bold">O(n)</span> (Linear)</td>
-            </tr>
-            <tr>
-              <td>Space Complexity</td>
-              <td><span class="font-mono text-indigo-400 font-bold">O(n)</span> (n nodes)</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-custom-wrapper">
+          <table class="table-custom">
+            <thead>
+              <tr>
+                <th>Operation</th>
+                <th>Time Complexity</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Push</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+              </tr>
+              <tr>
+                <td>Pop</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+              </tr>
+              <tr>
+                <td>Peek</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+              </tr>
+              <tr>
+                <td>IsEmpty</td>
+                <td><span class="font-mono text-emerald-400 font-bold">O(1)</span> (Constant)</td>
+              </tr>
+              <tr>
+                <td>Clear</td>
+                <td><span class="font-mono text-indigo-400 font-bold">O(n)</span> (Linear)</td>
+              </tr>
+              <tr>
+                <td>Space Complexity</td>
+                <td><span class="font-mono text-indigo-400 font-bold">O(n)</span> (n nodes)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- Linked List vs Array Stack Card -->
@@ -274,37 +279,39 @@
         <h3 class="section-title">
           🔄 Linked List vs Array Stack
         </h3>
-        <table class="table-custom">
-          <thead>
-            <tr>
-              <th>Feature</th>
-              <th>Linked List Stack</th>
-              <th>Array Stack</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Size Limit</td>
-              <td><span class="text-emerald-400 font-semibold">Dynamic</span> (Memory bound)</td>
-              <td><span class="text-rose-400 font-semibold">Fixed</span> (Pre-allocated)</td>
-            </tr>
-            <tr>
-              <td>Push / Pop Time</td>
-              <td><span class="text-emerald-400 font-semibold">O(1)</span></td>
-              <td><span class="text-emerald-400 font-semibold">O(1)</span></td>
-            </tr>
-            <tr>
-              <td>Memory Alloc</td>
-              <td>On Demand per Node</td>
-              <td>Pre-allocated array</td>
-            </tr>
-            <tr>
-              <td>Overflow</td>
-              <td>Only if System Memory Full</td>
-              <td>When Max Capacity Reached</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-custom-wrapper">
+          <table class="table-custom">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Linked List Stack</th>
+                <th>Array Stack</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Size Limit</td>
+                <td><span class="text-emerald-400 font-semibold">Dynamic</span> (Memory bound)</td>
+                <td><span class="text-rose-400 font-semibold">Fixed</span> (Pre-allocated)</td>
+              </tr>
+              <tr>
+                <td>Push / Pop Time</td>
+                <td><span class="text-emerald-400 font-semibold">O(1)</span></td>
+                <td><span class="text-emerald-400 font-semibold">O(1)</span></td>
+              </tr>
+              <tr>
+                <td>Memory Alloc</td>
+                <td>On Demand per Node</td>
+                <td>Pre-allocated array</td>
+              </tr>
+              <tr>
+                <td>Overflow</td>
+                <td>Only if System Memory Full</td>
+                <td>When Max Capacity Reached</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </section>

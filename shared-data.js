@@ -39,6 +39,39 @@ async function sharedDataRequest(action, method = "GET", payload = null) {
 }
 
 let sharedDataInFlightPromise = null;
+let universalPinConfig = null;
+
+function getUniversalPinConfig() {
+  if (universalPinConfig && typeof universalPinConfig === "object") {
+    return universalPinConfig;
+  }
+  if (typeof adminState !== "undefined" && adminState.pinConfig) {
+    return adminState.pinConfig;
+  }
+  return null;
+}
+
+function isPinUniversallyLocked(pin) {
+  if (!pin) return false;
+  const cleanPin = String(pin).trim();
+  const cfg = getUniversalPinConfig();
+  if (!cfg) return false;
+
+  // Direct check
+  if (cfg[cleanPin] && Boolean(cfg[cleanPin].isLocked)) {
+    return true;
+  }
+
+  // Alias checks for mirrored vaults
+  if (cleanPin === "3333" || cleanPin === "2222") {
+    return Boolean(cfg["3333"]?.isLocked || cfg["2222"]?.isLocked);
+  }
+  if (cleanPin === "1919" || cleanPin === "2024") {
+    return Boolean(cfg["1919"]?.isLocked || cfg["2024"]?.isLocked);
+  }
+
+  return false;
+}
 
 async function loadSharedData(showError = false) {
   if (!sharedDataConfigured()) return null;
@@ -62,26 +95,31 @@ async function loadSharedData(showError = false) {
       if (attendance) {
         localStorage.setItem("fm_attendance_data", JSON.stringify(attendance));
       }
+
+      // Universal PIN lock is stored purely in-memory from Google Sheets (NOT in localStorage)
       if (pinConfig) {
-        localStorage.setItem("fm_pin_config", JSON.stringify(pinConfig));
+        universalPinConfig = JSON.parse(JSON.stringify(pinConfig));
+        window.universalPinConfig = universalPinConfig;
+        if (typeof adminState !== "undefined") {
+          adminState.pinConfig = universalPinConfig;
+        }
       }
 
       if (typeof adminState !== "undefined") {
         adminState.blockedEmails = blockedEmails;
-        if (pinConfig) adminState.pinConfig = pinConfig;
       }
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("fmSharedDataSynced", {
-          detail: { pinConfig, blockedEmails, exams, timetable, attendance }
+          detail: { pinConfig: universalPinConfig, blockedEmails, exams, timetable, attendance }
         }));
       }
 
-      return { exams, timetable, activityLogs, blockedEmails, pinConfig };
+      return { exams, timetable, activityLogs, blockedEmails, pinConfig: universalPinConfig };
     } catch (error) {
       console.warn("Global data sync failed:", error);
       if (showError && typeof showToast === "function") {
-        showToast("Could not sync shared exam/timetable data.");
+        showToast("Could not sync shared data from Google Sheets.");
       }
       return null;
     } finally {
@@ -131,8 +169,21 @@ async function saveSharedBlockedList(blockedEmails) {
 async function saveSharedPinConfig(pinConfig) {
   if (!sharedDataConfigured()) return false;
   try {
-    await sharedDataRequest("savePinConfig", "POST", { pinConfig });
-    return true;
+    const res = await sharedDataRequest("savePinConfig", "POST", { pinConfig });
+    if (res && res.success) {
+      universalPinConfig = JSON.parse(JSON.stringify(pinConfig));
+      window.universalPinConfig = universalPinConfig;
+      if (typeof adminState !== "undefined") {
+        adminState.pinConfig = universalPinConfig;
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("fmSharedDataSynced", {
+          detail: { pinConfig: universalPinConfig }
+        }));
+      }
+      return true;
+    }
+    return false;
   } catch (error) {
     console.error("Saving PIN configuration to Google Sheets failed:", error);
     if (typeof showToast === "function") showToast("PIN configuration could not be saved to Google Sheets.");
@@ -434,6 +485,9 @@ window.getStoredAttendance = getStoredAttendance;
 window.saveStoredAttendance = saveStoredAttendance;
 window.refreshSharedAttendance = refreshSharedAttendance;
 window.fetchLiveGoogleSheetAttendance = fetchLiveGoogleSheetAttendance;
+window.getUniversalPinConfig = getUniversalPinConfig;
+window.isPinUniversallyLocked = isPinUniversallyLocked;
+window.saveSharedPinConfig = saveSharedPinConfig;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadSharedData(false);
